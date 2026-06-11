@@ -25,12 +25,20 @@
   (odoc :with-doc)
   async
   async_log
+  async_rpc_kernel
+  async_rpc_websocket
+  bonsai
+  bonsai_term
+  bonsai_term_components
+  bonsai_web
+  virtual_dom
+  cohttp-async
   core
   core_unix
   core_bench
-  bonsai_term
-  bonsai_term_components
   ppx_jane
+  ppx_html
+  js_of_ocaml-ppx
   (bin_prot :with-test)
   (notty-community :with-test)
   (expect_test_helpers_core :with-test)
