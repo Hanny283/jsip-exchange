@@ -28,18 +28,14 @@ let ( + ) = Int.( + )
 let ( - ) = Int.( - )
 let ( * ) price qty = price * qty
 
-let is_more_aggressive side ~price ~than =
-  ignore side;
-  ignore price;
-  ignore than;
-  failwith "TODO: implement Price.is_more_aggressive"
+let is_more_aggressive (side : Side.t) ~price ~than =
+  match side with Buy -> price > than | Sell -> price < than
 ;;
 
-let is_marketable side ~price ~resting_price =
-  ignore side;
-  ignore price;
-  ignore resting_price;
-  failwith "TODO: implement Price.is_marketable"
+let is_marketable (side : Side.t) ~price ~resting_price =
+  match side with
+  | Buy -> price >= resting_price
+  | Sell -> price <= resting_price
 ;;
 
 let to_string_dollar t =
