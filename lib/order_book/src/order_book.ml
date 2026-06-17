@@ -74,35 +74,51 @@ let find t order_id =
    Price.is_marketable incoming_side ~price:(Order.price incoming)
    ~resting_price:(Order.price resting)) ;; *)
 
+(* let find_match t incoming = let incoming_side = Order.side incoming in let
+   opposite_side = Side.flip incoming_side in let marketable_resting_orders =
+   List.filter (side_list t opposite_side) ~f:(fun resting ->
+   Price.is_marketable incoming_side ~price:(Order.price incoming)
+   ~resting_price:(Order.price resting)) in List.reduce
+   marketable_resting_orders ~f:(fun best_order_so_far next_order -> if not
+   (Price.( = ) (Order.price best_order_so_far) (Order.price next_order))
+   then if Price.is_more_aggressive incoming_side ~price:(Order.price
+   best_order_so_far) ~than:(Order.price next_order) then best_order_so_far
+   else next_order else if Order_id.( < ) (Order.order_id best_order_so_far)
+   (Order.order_id next_order) then best_order_so_far else next_order) ;; *)
+
 let find_match t incoming =
   let incoming_side = Order.side incoming in
   let opposite_side = Side.flip incoming_side in
-  let marketable_resting_orders =
-    List.filter (side_list t opposite_side) ~f:(fun resting ->
-      Price.is_marketable
-        incoming_side
-        ~price:(Order.price incoming)
-        ~resting_price:(Order.price resting))
-  in
-  List.reduce
-    marketable_resting_orders
-    ~f:(fun best_order_so_far next_order ->
-      if not
-           (Price.( = )
-              (Order.price best_order_so_far)
-              (Order.price next_order))
-      then
-        if Price.is_more_aggressive
-             incoming_side
-             ~price:(Order.price best_order_so_far)
-             ~than:(Order.price next_order)
+  let candidate_order =
+    List.reduce
+      (side_list t opposite_side)
+      ~f:(fun best_order_so_far next_order ->
+        if not
+             (Price.( = )
+                (Order.price best_order_so_far)
+                (Order.price next_order))
+        then
+          if Price.is_more_aggressive
+               incoming_side
+               ~price:(Order.price best_order_so_far)
+               ~than:(Order.price next_order)
+          then best_order_so_far
+          else next_order
+        else if Order_id.( < )
+                  (Order.order_id best_order_so_far)
+                  (Order.order_id next_order)
         then best_order_so_far
-        else next_order
-      else if Order_id.( < )
-                (Order.order_id best_order_so_far)
-                (Order.order_id next_order)
-      then best_order_so_far
-      else next_order)
+        else next_order)
+  in
+  match candidate_order with
+  | Some order ->
+    if Price.is_marketable
+         incoming_side
+         ~price:(Order.price incoming)
+         ~resting_price:(Order.price order)
+    then Some order
+    else None
+  | None -> None (* just check if candidate is marketable *)
 ;;
 
 let orders_on_side t side = side_list t side
@@ -154,11 +170,7 @@ let snapshot_side t (side : Side.t) =
       if Price.is_more_aggressive side ~price:price1 ~than:price2
       then 1
       else -1
-    else if Order_id.( < ) id1 id2
-    then 1
-    else if Order_id.( > ) id1 id2
-    then -1
-    else 0
+    else [%compare: Order_id.t] id1 id2
   in
   orders_on_side t side |> List.sort ~compare |> List.map ~f:Level.of_order
 ;;
