@@ -67,17 +67,14 @@ let find t order_id =
    (newest first), so this matches against whatever was most recently added,
    regardless of price. See test_matching_engine.ml for a test that
    demonstrates why this is wrong. *)
+
 let find_match t incoming =
   let incoming_side = Order.side incoming in
   let opposite_side = Side.flip incoming_side in
   let resting_orders = side_list t opposite_side in
-  let is_marketable ~price ~resting_price =
-    match (incoming_side : Side.t) with
-    | Buy -> Price.( >= ) price resting_price
-    | Sell -> Price.( <= ) price resting_price
-  in
   List.find resting_orders ~f:(fun resting ->
-    is_marketable
+    Price.is_marketable
+      incoming_side
       ~price:(Order.price incoming)
       ~resting_price:(Order.price resting))
 ;;
