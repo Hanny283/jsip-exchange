@@ -267,20 +267,19 @@ let%expect_test "snapshot lists levels in price-time priority order" =
     book
     (make_order ~side:Sell ~price_cents:15015 ~order_id:6 ());
   print_endline (Order_book.snapshot book |> Book.to_string);
-  (* The bids and asks below come out in reverse insertion order, not
-     best-price-first. Once the book stores orders in price-time priority,
-     bids should appear highest-first and asks lowest-first. *)
+  (* The book reports orders in price-time priority, regardless of insertion
+     order: bids highest-price-first, asks lowest-price-first. *)
   [%expect
     {|
     === AAPL ===
       BIDS:
-        $149.90 x100
-        $149.95 x100
         $150.00 x100
+        $149.95 x100
+        $149.90 x100
       ASKS:
-        $150.15 x100
-        $150.10 x100
         $150.05 x100
+        $150.10 x100
+        $150.15 x100
       BBO: $150.00 x100 / $150.05 x100
     |}]
 ;;

@@ -62,30 +62,10 @@ let find t order_id =
   match find_in Buy with Some _ as result -> result | None -> find_in Sell
 ;;
 
-(* NOTE: This walks the list front-to-back and returns the *first* tradable
-   order, not the best-priced one. Orders are in reverse insertion order
-   (newest first), so this matches against whatever was most recently added,
-   regardless of price. See test_matching_engine.ml for a test that
-   demonstrates why this is wrong. *)
-
-(* let find_match t incoming = let incoming_side = Order.side incoming in let
-   opposite_side = Side.flip incoming_side in let resting_orders = side_list
-   t opposite_side in List.find resting_orders ~f:(fun resting ->
-   Price.is_marketable incoming_side ~price:(Order.price incoming)
-   ~resting_price:(Order.price resting)) ;; *)
-
-(* let find_match t incoming = let incoming_side = Order.side incoming in let
-   opposite_side = Side.flip incoming_side in let marketable_resting_orders =
-   List.filter (side_list t opposite_side) ~f:(fun resting ->
-   Price.is_marketable incoming_side ~price:(Order.price incoming)
-   ~resting_price:(Order.price resting)) in List.reduce
-   marketable_resting_orders ~f:(fun best_order_so_far next_order -> if not
-   (Price.( = ) (Order.price best_order_so_far) (Order.price next_order))
-   then if Price.is_more_aggressive incoming_side ~price:(Order.price
-   best_order_so_far) ~than:(Order.price next_order) then best_order_so_far
-   else next_order else if Order_id.( < ) (Order.order_id best_order_so_far)
-   (Order.order_id next_order) then best_order_so_far else next_order) ;; *)
-
+(* Scan the opposite side for the most aggressively priced resting order
+   (lowest ask for an incoming buy, highest bid for an incoming sell), with
+   ties broken by arrival time (lower order id = arrived first), then confirm
+   it is marketable against the incoming order's price. *)
 let find_match t incoming =
   let incoming_side = Order.side incoming in
   let opposite_side = Side.flip incoming_side in
@@ -98,8 +78,11 @@ let find_match t incoming =
                 (Order.price best_order_so_far)
                 (Order.price next_order))
         then
+          (* Pick the most aggressive resting order from the resting side's
+             own perspective: lowest ask for an incoming buy, highest bid for
+             an incoming sell. *)
           if Price.is_more_aggressive
-               incoming_side
+               opposite_side
                ~price:(Order.price best_order_so_far)
                ~than:(Order.price next_order)
           then best_order_so_far
@@ -110,6 +93,8 @@ let find_match t incoming =
         then best_order_so_far
         else next_order)
   in
+  (* The most aggressive resting order is the only one worth checking: if it
+     isn't marketable, nothing on this side crosses. *)
   match candidate_order with
   | Some order ->
     if Price.is_marketable
@@ -118,7 +103,7 @@ let find_match t incoming =
          ~resting_price:(Order.price order)
     then Some order
     else None
-  | None -> None (* just check if candidate is marketable *)
+  | None -> None
 ;;
 
 let orders_on_side t side = side_list t side
@@ -153,12 +138,9 @@ let best_bid_offer t : Bbo.t =
   { bid = best_level t Buy; ask = best_level t Sell }
 ;;
 
-(* let snapshot_side t (side : Side.t) = let compare = match side with | Buy
-   -> Comparable.reverse Level.compare | Sell -> Level.compare in
-   orders_on_side t side |> List.map ~f:Level.of_order |> List.sort ~compare
-   ;;
-*)
-
+(* Sort the underlying orders by price-time priority first, then project to
+   levels. Sorting [Level.t]s directly would lose arrival time, since a level
+   carries only price and size. *)
 let snapshot_side t (side : Side.t) =
   let compare resting1 resting2 =
     let price1 = Order.price resting1 in
@@ -167,9 +149,11 @@ let snapshot_side t (side : Side.t) =
     let id2 = Order.order_id resting2 in
     if not (Price.( = ) price1 price2)
     then
+      (* Most aggressive first: highest bids / lowest asks lead the snapshot,
+         matching the order [find_match] visits them. *)
       if Price.is_more_aggressive side ~price:price1 ~than:price2
-      then 1
-      else -1
+      then -1
+      else 1
     else [%compare: Order_id.t] id1 id2
   in
   orders_on_side t side |> List.sort ~compare |> List.map ~f:Level.of_order

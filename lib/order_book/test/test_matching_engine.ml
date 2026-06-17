@@ -106,8 +106,8 @@ let%expect_test "aggressor sweeps multiple resting orders" =
     ACCEPTED id=1 AAPL SELL 50@$150.00 DAY
     ACCEPTED id=2 AAPL SELL 80@$150.00 DAY
     ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=2 AAPL $150.00 x20 aggressor=3(Alice) BUY resting=1(Bob)
-    FILL fill_id=1 AAPL $150.00 x80 aggressor=3(Alice) BUY resting=2(Charlie)
+    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=1(Bob)
+    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=2(Charlie)
     |}]
 ;;
 
@@ -231,25 +231,24 @@ let%expect_test "book: returns book for known symbol, None for unknown" =
 ;;
 
 (* ================================================================ *)
-(* Price priority (known naive bug) *)
+(* Price priority *)
 (* ================================================================ *)
 
-let%expect_test "price priority: naive impl matches first-found, not best" =
+let%expect_test "price priority: matches best-priced resting order" =
   let t = Harness.create () in
-  (* Charlie sells at $10.00, then Bob at $10.05. A correct engine should
-     match the buy against Charlie's $10.00 (best ask). The naive
-     list-prepend means Bob's $10.05 is at the front. *)
+  (* Charlie sells at $10.00, then Bob at $10.05. Bob's $10.05 was added more
+     recently and sits at the front of the list, but price-time priority
+     matches the buy against Charlie's $10.00 — the best (lowest) ask. *)
   submit_ t (Harness.sell ~price_cents:1000 ~participant:Harness.charlie ());
   submit_ t (Harness.sell ~price_cents:1005 ~participant:Harness.bob ());
   submit_ t (Harness.buy ~price_cents:1005 ());
-  (* NOTE: The buyer pays $10.05 instead of $10.00 — $0.05/share of
-     unnecessary cost! *)
+  (* The buyer pays $10.00, the best ask — not $10.05. *)
   [%expect
     {|
     ACCEPTED id=1 AAPL SELL 100@$10.00 DAY
     ACCEPTED id=2 AAPL SELL 100@$10.05 DAY
     ACCEPTED id=3 AAPL BUY 100@$10.05 DAY
-    FILL fill_id=1 AAPL $10.05 x100 aggressor=3(Alice) BUY resting=2(Bob)
+    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice) BUY resting=1(Charlie)
     |}]
 ;;
 
@@ -371,11 +370,11 @@ let%expect_test "scenario: two participants trade, book reflects state" =
     FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie) BUY resting=3(Bob)
     === AAPL ===
       BIDS:
-        $149.80 x200
         $149.90 x100
+        $149.80 x200
       ASKS:
-        $150.20 x150
         $150.10 x50
+        $150.20 x150
       BBO: $149.90 x100 / $150.10 x50
     BBO AAPL: $149.90 x100 / $150.10 x50
     |}]
@@ -405,9 +404,9 @@ let%expect_test "scenario: aggressive IOC sweeps entire book" =
     ACCEPTED id=2 AAPL SELL 50@$150.10 DAY
     ACCEPTED id=3 AAPL SELL 50@$150.20 DAY
     ACCEPTED id=4 AAPL BUY 200@$150.20 IOC
-    FILL fill_id=1 AAPL $150.20 x50 aggressor=4(Alice) BUY resting=3(Bob)
+    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice) BUY resting=1(Bob)
     FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice) BUY resting=2(Charlie)
-    FILL fill_id=3 AAPL $150.00 x50 aggressor=4(Alice) BUY resting=1(Bob)
+    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice) BUY resting=3(Bob)
     CANCELLED id=4 AAPL remaining=50 reason=IOC_REMAINDER
     === AAPL ===
       BIDS: (empty)
