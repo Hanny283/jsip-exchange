@@ -50,10 +50,7 @@ val ( * ) : t -> int -> t
     seller, a lower price is more aggressive (willing to accept less).
 
     [is_more_aggressive side ~price ~than] returns [true] when [price] would
-    execute before [than] in a price-priority order book.
-
-    Currently unimplemented — raises [Failure]. Filling this in is one of the
-    project's exercises. *)
+    execute before [than] in a price-priority order book. *)
 val is_more_aggressive : Side.t -> price:t -> than:t -> bool
 
 (** Would an order on the given side trade against a resting order at
