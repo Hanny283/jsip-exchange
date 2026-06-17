@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781724569309,
+  "lastUpdate": 1781727000637,
   "repoUrl": "https://github.com/Hanny283/jsip-exchange",
   "entries": {
     "Order book benchmark": [
@@ -893,6 +893,155 @@ window.BENCHMARK_DATA = {
           {
             "name": "find_match_alloc (n=100)",
             "value": 3010.6297855646244,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanselcarmona5@gmail.com",
+            "name": "Hansel",
+            "username": "Hanny283"
+          },
+          "committer": {
+            "email": "hanselcarmona5@gmail.com",
+            "name": "Hansel",
+            "username": "Hanny283"
+          },
+          "distinct": true,
+          "id": "9826978949165eea9e5bdda6849934e22460d7f3",
+          "message": "fixed price.ml",
+          "timestamp": "2026-06-17T20:05:12Z",
+          "tree_id": "f122b95988c68a6f7d8aa0e349a46505f9d7db8a",
+          "url": "https://github.com/Hanny283/jsip-exchange/commit/9826978949165eea9e5bdda6849934e22460d7f3"
+        },
+        "date": 1781726999864,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "find_match (n=10)",
+            "value": 234.27813200000327,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=50)",
+            "value": 1074.867613800628,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=100)",
+            "value": 2052.4110438505127,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=500)",
+            "value": 10392.807801033012,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=10)",
+            "value": 216.04627399152955,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=50)",
+            "value": 1061.2660817380647,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=100)",
+            "value": 2091.239538659018,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=500)",
+            "value": 10075.860708926592,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=10)",
+            "value": 254.86565355564193,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=50)",
+            "value": 1192.5432967302233,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=100)",
+            "value": 2338.5527974177126,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=500)",
+            "value": 11643.722192179182,
+            "unit": "ns"
+          },
+          {
+            "name": "add+remove (n=100)",
+            "value": 1607.4317276117515,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=10)",
+            "value": 1751.6442733113013,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=50)",
+            "value": 7516.97534696003,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=100)",
+            "value": 15035.502070099614,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=500)",
+            "value": 71215.1510859782,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=10)",
+            "value": 843.7519006133859,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=50)",
+            "value": 3751.893225708174,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=100)",
+            "value": 7393.873826624577,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=500)",
+            "value": 36724.54762745325,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_10_levels",
+            "value": 7149.105499354002,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_50_levels",
+            "value": 122045.65566477718,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_100_levels",
+            "value": 464536.85553789744,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_alloc (n=100)",
+            "value": 2338.3577291725833,
             "unit": "ns"
           }
         ]
