@@ -87,16 +87,14 @@ let is_empty t = List.is_empty t.bids && List.is_empty t.asks
 let count t side = List.length (side_list t side)
 
 let best_price t side =
-  match side_list t side with
-  | [] -> None
-  | first :: rest ->
-    let is_better =
-      match (side : Side.t) with Buy -> Price.( > ) | Sell -> Price.( < )
-    in
-    Some
-      (List.fold rest ~init:(Order.price first) ~f:(fun best order ->
-         let price = Order.price order in
-         if is_better price best then price else best))
+  let price_list = List.map (side_list t side) ~f:Order.price in
+  List.reduce price_list ~f:(fun best_price_so_far next_price ->
+    if Price.is_more_aggressive
+         side
+         ~price:best_price_so_far
+         ~than:next_price
+    then best_price_so_far
+    else next_price)
 ;;
 
 let best_level t side : Level.t option =
