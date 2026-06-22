@@ -1,11 +1,6 @@
 open! Core
 open Jsip_types
 
-(* Default participant when no "as <name>" is specified in the command.
-   [parse_command_with_default_participant] overrides this with the
-   caller-supplied default. *)
-let default_participant = Participant.of_string "anonymous"
-
 (* let parse_command_with_default_participant line ~default = match
    parse_command line with | Error _ as err -> err | Ok request -> if
    Participant.equal request.participant default_participant then Ok

@@ -2,10 +2,14 @@ open! Core
 open Jsip_types
 open Async_log_kernel.Ppx_log_syntax
 
+
+module PriceMap  
+
+
 type t =
   { symbol : Symbol.t
-  ; mutable bids : Order.t list
-  ; mutable asks : Order.t list
+  ; mutable bids : (Price.t * Map
+  ; mutable asks : Order.t Map 
   }
 [@@deriving sexp_of]
 

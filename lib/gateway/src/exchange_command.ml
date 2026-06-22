@@ -116,7 +116,6 @@ let parse ?default_participant command =
         String.split (String.concat ~sep:" " strip_rest) ~on:' '
         |> List.filter ~f:(Fn.non String.is_empty)
       in
-      let open Result.Let_syntax in
       match Verb.of_string first_word with
       | Buy ->
         Or_error.map
