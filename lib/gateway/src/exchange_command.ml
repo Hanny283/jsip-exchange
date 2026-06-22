@@ -74,7 +74,7 @@ let parse_buy_or_sell ?default_participant parts side =
         Ok (Participant.of_string name)
       | [] ->
         (match default_participant with
-         | Some participant -> Ok (Participant.of_string participant)
+         | Some participant -> Ok participant
          | None -> Ok (Participant.of_string "anonymous"))
       | _ ->
         let trailing = String.concat ~sep:" " rest in
@@ -92,7 +92,11 @@ let parse_buy_or_sell ?default_participant parts side =
        : Order.Request.t)
   | _ ->
     Or_error.error_string
-      "expected: BUY|SELL <symbol> <size> <price> [DAY|IOC] [as <name>]"
+      ("expected: BUY|SELL <symbol> <size> <price> "
+       ^ "["
+       ^ Time_in_force.all_str
+       ^ "]"
+       ^ " [as <name>]")
 ;;
 
 let parse ?default_participant command =
