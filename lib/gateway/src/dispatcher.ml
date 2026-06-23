@@ -93,9 +93,6 @@ let push_audit t event =
 ;;
 
 let push_to_session t participant event =
-  (* TODO: Once sessions have been implemented this function should write the
-     event to the appropriate session's pipe. For now we have the server
-     binary print these events to stdout while tests can silence them. *)
   let session = Hashtbl.find t.session_table participant in
   match session with None -> () | Some sesh -> Session.push sesh event
 ;;

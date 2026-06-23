@@ -1,11 +1,6 @@
 open! Core
 open Jsip_types
 
-(* let parse_command_with_default_participant line ~default = match
-   parse_command line with | Error _ as err -> err | Ok request -> if
-   Participant.equal request.participant default_participant then Ok
-   [{ request with participant = default }] else Ok request ;; *)
-
 let format_event = function
   | Exchange_event.Order_accept { order_id; request } ->
     sprintf

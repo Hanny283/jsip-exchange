@@ -39,3 +39,16 @@ let audit_log_rpc =
     ~bin_error:Error.bin_t
     ()
 ;;
+
+let login_rpc (participant_name : string) : Participant.t Or_error.t =
+  let stripped =
+    String.filter participant_name ~f:(fun char ->
+      not (Char.is_whitespace char))
+  in
+  if String.is_empty stripped
+  then Error (Error.of_string "Invalid Name: Empty or All whitespaces")
+  else (
+    let session = Session.create (Participant.of_string participant_name) in
+    (* register on dispatcher *)
+    Dispatcher.set_up_session)
+;;
