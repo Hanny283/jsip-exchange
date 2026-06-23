@@ -11,6 +11,12 @@ type t =
   ; port : int
   }
 
+module Connection_state = struct
+  type t = { mutable session : Session.t option }
+
+  let participant t = Option.map t.session ~f:Session.participant
+end
+
 (* Bound how many client requests can sit in the queue waiting for the
    matching engine. Once the queue is full, [Pipe.write] returns a pending
    deferred and the [submit_order_rpc] handler blocks until the engine has
@@ -60,6 +66,23 @@ let start ~symbols ~port () =
             ignore state;
             let reader = Dispatcher.subscribe_audit dispatcher in
             return (Ok reader))
+        ; Rpc.Rpc.implement
+            Rpc_protocol.login_rpc
+            (fun (state : Connection_state.t) participant_name ->
+               let stripped =
+                 String.filter participant_name ~f:(fun char ->
+                   not (Char.is_whitespace char))
+               in
+               if String.is_empty stripped
+               then
+                 Deferred.return
+                   (Error.of_string "Invalid Name: Empty or All whitespaces")
+               else (
+                 let participant = Participant.of_string participant_name in
+                 let session = Session.create participant in
+                 state.session <- Some session;
+                 let _ = Dispatcher.set_up_session dispatcher participant in
+                 Deferred.return (Participant.of_string participant_name)))
         ]
       ~on_unknown_rpc:`Close_connection
       ~on_exception:Log_on_background_exn
@@ -67,7 +90,8 @@ let start ~symbols ~port () =
   let%map tcp_server =
     Rpc.Connection.serve
       ~implementations
-      ~initial_connection_state:(fun _addr _conn -> ())
+      ~initial_connection_state:(fun _addr _conn : Connection_state.t ->
+        { session = None })
       ~where_to_listen:(Tcp.Where_to_listen.of_port port)
       ()
   in

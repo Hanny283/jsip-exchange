@@ -25,24 +25,16 @@ let clean_up_session (t : t) (session : Session.t) : unit Deferred.t =
 
 let set_up_session (t : t) (participant : Participant.t) : unit Deferred.t =
   let session = Hashtbl.find t.session_table participant in
-  match session with
-  | None ->
-    let _ =
-      Hashtbl.add_exn
-        t.session_table
-        ~data:(Session.create participant)
-        ~key:participant
-    in
-    Deferred.return ()
-  | Some sesh ->
-    let _ = clean_up_session t sesh in
-    let _ =
-      Hashtbl.add_exn
-        t.session_table
-        ~data:(Session.create participant)
-        ~key:participant
-    in
-    Deferred.return ()
+  let%bind () =
+    match session with
+    | None -> Deferred.return ()
+    | Some sesh -> clean_up_session t sesh
+  in
+  Hashtbl.add_exn
+    t.session_table
+    ~data:(Session.create participant)
+    ~key:participant;
+  Deferred.return ()
 ;;
 
 let subscribe_market_data t symbols =
