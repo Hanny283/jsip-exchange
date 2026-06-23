@@ -57,15 +57,19 @@ let parse_buy_or_sell ?default_participant parts side =
     let%bind time_in_force, rest =
       match rest with
       | tif_str :: rest' ->
-        if List.mem
-             Time_in_force.all
-             (Time_in_force.of_string tif_str)
-             ~equal:Time_in_force.equal
-        then Ok (Time_in_force.of_string tif_str, rest')
-        else
-          Or_error.error_string
-            [%string
-              "unknown time-in-force: %{tif_str} %{Time_in_force.all_str}"]
+        (match Or_error.try_with (fun () -> Time_in_force.of_string tif_str) with
+         | Ok tif -> Ok (tif, rest')
+         | Error _ ->
+           (* Not a time-in-force. If it's the start of an "as <name>"
+              clause, fall through to the default Day and leave the clause
+              for the participant parser; otherwise it's a genuine error. *)
+           (match tif_str with
+            | "as" | "AS" -> Ok (Day, rest)
+            | _ ->
+              Or_error.error_string
+                [%string
+                  "unknown time-in-force: %{tif_str} (expected \
+                   %{Time_in_force.all_str})"]))
       | [] -> Ok (Day, [])
     in
     let%bind participant =
@@ -101,35 +105,34 @@ let parse_buy_or_sell ?default_participant parts side =
 
 let parse ?default_participant command =
   let delimeter = ' ' in
-  let command = String.split ~on:delimeter command in
+  let command = String.split ~on:delimeter (String.strip command) in
   match command with
-  | [] ->
-    Or_error.error_string "Or_error.error_string: Received an empty string"
+  | [] -> Or_error.error_string "empty command"
   | first_word :: rest_of_command ->
     let strip_rest = List.map rest_of_command ~f:String.strip in
     if String.is_empty (String.concat ~sep:" " strip_rest)
-    then
-      Or_error.error_string
-        "Or_error.error_string: Command is missing arguments"
+    then Or_error.error_string "command is missing arguments"
     else (
       let parts =
         String.split (String.concat ~sep:" " strip_rest) ~on:' '
         |> List.filter ~f:(Fn.non String.is_empty)
       in
-      match Verb.of_string first_word with
-      | Buy ->
+      match Or_error.try_with (fun () -> Verb.of_string first_word) with
+      | Error _ ->
+        Or_error.error_string [%string "unknown command: %{first_word}"]
+      | Ok Buy ->
         Or_error.map
           ~f:(fun element -> Submit element)
           (parse_buy_or_sell ?default_participant parts Buy)
-      | Sell ->
+      | Ok Sell ->
         Or_error.map
           ~f:(fun element -> Submit element)
           (parse_buy_or_sell ?default_participant parts Sell)
-      | Book ->
+      | Ok Book ->
         Or_error.map
           ~f:(fun element -> Book element)
           (parse_book_or_subscribe parts)
-      | Subscribe ->
+      | Ok Subscribe ->
         Or_error.map
           ~f:(fun element -> Subscribe element)
           (parse_book_or_subscribe parts))

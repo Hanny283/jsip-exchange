@@ -39,7 +39,9 @@ market-data feed.|}];
       if String.is_empty line
       then loop ()
       else (
-        let parsed = Exchange_command.parse line in
+        let parsed =
+          Exchange_command.parse ~default_participant:participant line
+        in
         match parsed with
         | Error msg ->
           let string_error = Error.to_string_hum msg in
