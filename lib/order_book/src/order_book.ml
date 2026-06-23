@@ -82,14 +82,23 @@ let remove t order_id =
      | None -> ()
      | Some q ->
        Queue.filter_inplace q ~f:(fun x -> Order.compare x order <> 0));
-    Map.remove t.identifiers order_id |> set_identifiers t
-  
-    let best_level = best_level t Order.side order in (match best_level with 
-    | None -> 
-    | Some {price = price} )
+    Map.remove t.identifiers order_id |> set_identifiers t;
+    (match side with
+     | Buy ->
+       (match Map.max_elt t.bids with
+        | None -> ()
+        | Some (max_elt, _) -> t.best_bid <- Some max_elt)
+     | Sell ->
+       (match Map.min_elt t.bids with
+        | None -> ()
+        | Some (min_elt, _) -> t.best_bid <- Some min_elt))
 ;;
 
 let find t order_id = Map.find t.identifiers order_id
+
+let best_price (t : t) (side : Side.t) =
+  match side with Buy -> t.best_bid | Sell -> t.best_ask
+;;
 
 (* Scan the opposite side for the most aggressively priced resting order
    (lowest ask for an incoming buy, highest bid for an incoming sell), with
@@ -97,85 +106,41 @@ let find t order_id = Map.find t.identifiers order_id
    it is marketable against the incoming order's price. *)
 let find_match t incoming =
   let incoming_side = Order.side incoming in
-  let candidate = best_price t incoming_side in 
-  match candid
-
-
   let opposite_side = Side.flip incoming_side in
-  let candidate_order =
-    List.reduce
-      (side_levels t opposite_side)
-      ~f:(fun best_order_so_far next_order ->
-        if not
-             (Price.( = )
-                (Order.price best_order_so_far)
-                (Order.price next_order))
-        then
-          (* Pick the most aggressive resting order from the resting side's
-             own perspective: lowest ask for an incoming buy, highest bid for
-             an incoming sell. *)
-          if Price.is_more_aggressive
-               opposite_side
-               ~price:(Order.price best_order_so_far)
-               ~than:(Order.price next_order)
-          then best_order_so_far
-          else next_order
-        else if Order_id.( < )
-                  (Order.order_id best_order_so_far)
-                  (Order.order_id next_order)
-        then best_order_so_far
-        else next_order)
+  let levels_map = side_levels t opposite_side in
+  let candidate_price = best_price t opposite_side in
+  let candidate =
+    match candidate_price with
+    | None -> None
+    | Some price ->
+      let q = Map.find levels_map price in
+      (match q with None -> None | Some queue -> Queue.peek queue)
   in
-  (* The most aggressive resting order is the only one worth checking: if it
-     isn't marketable, nothing on this side crosses. *)
-  match candidate_order with
-  | Some order ->
+  match candidate with
+  | None -> None
+  | Some resting_order ->
     if Price.is_marketable
          incoming_side
+         ~resting_price:(Order.price resting_order)
          ~price:(Order.price incoming)
-         ~resting_price:(Order.price order)
-    then Some order
+    then Some resting_order
     else None
-  | None -> None
 ;;
 
-let orders_on_side t side = side_levels t side
+let orders_on_side t side =
+  let assoc_list =
+    match side with
+    | Side.Buy -> Map.to_alist ~key_order:`Decreasing (side_levels t side)
+    | Side.Sell -> Map.to_alist ~key_order:`Increasing (side_levels t side)
+  in
+  List.concat (List.map assoc_list ~f:(fun (_, q) -> Queue.to_list q))
+;;
+
 let is_empty t = Map.is_empty t.bids && Map.is_empty t.asks
 
 let count t side =
   Map.fold (side_levels t side) ~init:0 ~f:(fun ~key:_ ~data:value acc ->
     acc + Queue.length value)
-;;
-
-let best_price t side =
-  let side_levels = side_levels t side in
-  match side with
-  | Buy ->
-    (match t.best_bid with
-     | None -> None
-     | Some curr_best ->
-       let best_binding = Map.max_elt side_levels in
-       (match best_binding with
-        | Some (best_price, _) ->
-          if Price.is_more_aggressive side ~price:best_price ~than:curr_best
-          then (
-            t.best_bid <- Some best_price;
-            Some best_price)
-          else Some curr_best
-        | None -> t.best_bid))
-  | Sell ->
-    (match t.best_ask with
-     | None -> None
-     | Some curr_best ->
-       let best_binding = Map.min_elt side_levels in
-       (match best_binding with
-        | Some (best_price, _) ->
-          if Price.is_more_aggressive side ~price:best_price ~than:curr_best
-          then (
-            t.best_ask <- Some best_price;
-            Some best_price)
-          else Some curr_best
-        | None -> t.best_bid))
 ;;
 
 let best_level t side : Level.t option =
@@ -225,5 +190,5 @@ let snapshot t =
 ;;
 
 module For_testing = struct
-  let remove = remove'
+  let remove = remove
 end
