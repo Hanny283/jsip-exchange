@@ -48,3 +48,12 @@ let login_rpc =
     ~bin_response:Participant.bin_t
     ~include_in_error_count:Only_on_exn
 ;;
+
+let session_feed_rpc =
+  Rpc.Pipe_rpc.create
+    ~name:"sesion-feed"
+    ~version:1
+    ~bin_query:Unit.bin_t
+    ~bin_response:Exchange_event.bin_t
+    ~bin_error:Error.bin_t
+;;

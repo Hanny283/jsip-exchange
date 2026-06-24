@@ -39,6 +39,8 @@ type t =
       the participants — it is what the broader market sees. *)
 [@@deriving sexp, bin_io]
 
+val to_string_hum : t -> string
+
 (** Is this a market data event (BBO update or trade report)? *)
 val is_market_data : t -> bool
 

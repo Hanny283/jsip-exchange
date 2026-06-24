@@ -28,6 +28,16 @@ Commands: BUY|SELL <symbol> <size> <price> %{Time_in_force.all_str#String}
 Order acknowledgements, fills, and cancellations are temporarily printed
 by the server process; the SUBSCRIBE command attaches you to a per-symbol
 market-data feed.|}];
+  let%bind _ =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc conn participant_name
+  in
+  let%bind session_feed, _ =
+    Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc conn ()
+  in
+  let _ =
+    Pipe.iter session_feed ~f:(fun event ->
+      Deferred.return (print_endline (Exchange_event.to_string_hum event)))
+  in
   let rec loop () =
     print_string "> ";
     match%bind Reader.read_line (Lazy.force Reader.stdin) with

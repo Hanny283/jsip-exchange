@@ -29,6 +29,12 @@ let handle_submit ~request_writer (request : Order.Request.t) =
   Ok ()
 ;;
 
+let handle_session_feed (state : Connection_state.t) =
+  match state.session with
+  | None -> Error.raise (Error.of_string "not logged in ")
+  | Some session -> Ok (Session.reader session)
+;;
+
 let start_matching_loop ~engine ~dispatcher request_reader =
   don't_wait_for
     (Pipe.iter_without_pushback request_reader ~f:(fun request ->
@@ -47,9 +53,22 @@ let start ~symbols ~port () =
       ~implementations:
         [ Rpc.Rpc.implement
             Rpc_protocol.submit_order_rpc
-            (fun state request ->
-               ignore state;
-               handle_submit ~request_writer request)
+            (fun (state : Connection_state.t) request ->
+               let session = state.session in
+               match session with
+               | None -> Error.raise (Error.of_string "not logged in")
+               | Some session ->
+                 let participant = Session.participant session in
+                 let (rq : Order.Request.t) =
+                   { symbol = request.symbol
+                   ; participant
+                   ; side = request.side
+                   ; price = request.price
+                   ; size = request.size
+                   ; time_in_force = request.time_in_force
+                   }
+                 in
+                 handle_submit ~request_writer rq)
         ; Rpc.Rpc.implement' Rpc_protocol.book_query_rpc (fun state symbol ->
             ignore state;
             Matching_engine.book engine symbol
@@ -75,7 +94,7 @@ let start ~symbols ~port () =
                in
                if String.is_empty stripped
                then
-                 Deferred.return
+                 Error.raise
                    (Error.of_string "Invalid Name: Empty or All whitespaces")
                else (
                  let participant = Participant.of_string participant_name in
@@ -83,6 +102,10 @@ let start ~symbols ~port () =
                  state.session <- Some session;
                  let _ = Dispatcher.set_up_session dispatcher participant in
                  Deferred.return (Participant.of_string participant_name)))
+        ; Rpc.Pipe_rpc.implement
+            Rpc_protocol.session_feed_rpc
+            (fun (state : Connection_state.t) () ->
+               Deferred.return (handle_session_feed state))
         ]
       ~on_unknown_rpc:`Close_connection
       ~on_exception:Log_on_background_exn
@@ -91,7 +114,13 @@ let start ~symbols ~port () =
     Rpc.Connection.serve
       ~implementations
       ~initial_connection_state:(fun _addr _conn : Connection_state.t ->
-        { session = None })
+        let (state : Connection_state.t) = { session = None } in
+        don't_wait_for
+          (let%bind () = Rpc.Connection.close_finished _conn in
+           match state.session with
+           | None -> Deferred.return ()
+           | Some session -> Dispatcher.clean_up_session dispatcher session);
+        state)
       ~where_to_listen:(Tcp.Where_to_listen.of_port port)
       ()
   in

@@ -28,6 +28,12 @@ let start_bot ~where_to_connect ~oracle (Bot_spec.T spec) =
            "Scenario runner: cancel RPC not implemented yet"
              (order_id : Order_id.t)])
   in
+  let%bind _ =
+    Rpc.Rpc.dispatch_exn
+      Rpc_protocol.login_rpc
+      connection
+      (Participant.to_string spec.participant)
+  in
   let bot =
     Bot_runtime.create
       spec.bot

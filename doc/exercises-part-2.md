@@ -264,8 +264,7 @@ Update `submit_order_rpc`'s handler to:
 3. Enqueue the request as before.
 
 Update the scenario runner, the server binary's seed and
-trade-back-and-forth modes, and any other callers so they log in
-before they submit.
+trade-back-and-forth modes, and any other callers so they log in before they submit.
 
 Add a block for `login_rpc` to `lib/gateway/test/test_rpc_shapes.ml`.
 
