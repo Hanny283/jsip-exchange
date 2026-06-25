@@ -27,6 +27,8 @@ type t
     up to real [Session] outbound pipes is a week-2 exercise. *)
 val create : unit -> t
 
+val state_table : t -> Participant_state.t Participant.Table.t
+
 (** Subscribe to public market data for one or more [symbols]. The same pipe
     receives events for every requested symbol; the dispatcher avoids
     duplicates so a subscriber listed against multiple symbols only sees each

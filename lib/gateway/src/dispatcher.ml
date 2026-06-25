@@ -6,33 +6,37 @@ type t =
   { market_data_subscribers_by_symbol :
       Exchange_event.t Pipe.Writer.t Bag.t Symbol.Table.t
   ; audit_subscribers : Exchange_event.t Pipe.Writer.t Bag.t
-  ; session_table : Session.t Participant.Table.t
+  ; participant_state_table : Participant_state.t Participant.Table.t
   }
 
 let create () =
   { market_data_subscribers_by_symbol = Symbol.Table.create ()
   ; audit_subscribers = Bag.create ()
-  ; session_table = Participant.Table.create ()
+  ; participant_state_table = Participant.Table.create ()
   }
 ;;
 
+let state_table (t : t) = t.participant_state_table
+
 let clean_up_session (t : t) (session : Session.t) : unit Deferred.t =
   let participant = Session.participant session in
-  if Hashtbl.mem t.session_table participant
+  if Hashtbl.mem t.participant_state_table participant
   then Deferred.return (Session.close session)
   else Deferred.return ()
 ;;
 
 let set_up_session (t : t) (participant : Participant.t) : unit Deferred.t =
-  let session = Hashtbl.find t.session_table participant in
+  let participant_state =
+    Hashtbl.find t.participant_state_table participant
+  in
   let%bind () =
-    match session with
+    match (participant_state : Participant_state.t option) with
     | None -> Deferred.return ()
-    | Some sesh -> clean_up_session t sesh
+    | Some state -> clean_up_session t (Participant_state.session state)
   in
   Hashtbl.add_exn
-    t.session_table
-    ~data:(Session.create participant)
+    t.participant_state_table
+    ~data:(Participant_state.create (Session.create participant))
     ~key:participant;
   Deferred.return ()
 ;;
@@ -85,8 +89,12 @@ let push_audit t event =
 ;;
 
 let push_to_session t participant event =
-  let session = Hashtbl.find t.session_table participant in
-  match session with None -> () | Some sesh -> Session.push sesh event
+  let participant_state =
+    Hashtbl.find t.participant_state_table participant
+  in
+  match participant_state with
+  | None -> ()
+  | Some state -> Session.push (Participant_state.session state) event
 ;;
 
 let dispatch_event t (event : Exchange_event.t) =

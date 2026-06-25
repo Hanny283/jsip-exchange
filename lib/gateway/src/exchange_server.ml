@@ -44,6 +44,7 @@ let start_matching_loop ~engine ~dispatcher request_reader =
 
 let start ~symbols ~port () =
   let engine = Matching_engine.create symbols in
+  let generator = Client_order_id.Generator.create () in
   let dispatcher = Dispatcher.create () in
   let request_reader, request_writer = Pipe.create () in
   Pipe.set_size_budget request_writer request_queue_size_budget;
@@ -66,9 +67,30 @@ let start ~symbols ~port () =
                    ; price = request.price
                    ; size = request.size
                    ; time_in_force = request.time_in_force
+                   ; client_order_id =
+                       Client_order_id.Generator.next generator
                    }
                  in
-                 handle_submit ~request_writer rq)
+                 let participant_state_table =
+                   Dispatcher.state_table dispatcher
+                 in
+                 let participant_state =
+                   Hashtbl.find_exn participant_state_table participant
+                 in
+                 let client_orders =
+                   Participant_state.client_orders participant_state
+                 in
+                 if Hash_set.mem client_orders rq.client_order_id
+                 then (
+                   Dispatcher.dispatch
+                     dispatcher
+                     [ Order_reject
+                         { request = rq
+                         ; reason = "Duplicate Client_order_id"
+                         }
+                     ];
+                   Deferred.Or_error.ok_unit)
+                 else handle_submit ~request_writer rq)
         ; Rpc.Rpc.implement' Rpc_protocol.book_query_rpc (fun state symbol ->
             ignore state;
             Matching_engine.book engine symbol
@@ -100,8 +122,10 @@ let start ~symbols ~port () =
                  let participant = Participant.of_string participant_name in
                  let session = Session.create participant in
                  state.session <- Some session;
-                 let _ = Dispatcher.set_up_session dispatcher participant in
-                 Deferred.return (Participant.of_string participant_name)))
+                 let%bind () =
+                   Dispatcher.set_up_session dispatcher participant
+                 in
+                 Deferred.return (Ok participant)))
         ; Rpc.Pipe_rpc.implement
             Rpc_protocol.session_feed_rpc
             (fun (state : Connection_state.t) () ->

@@ -51,8 +51,7 @@ let%expect_test "book-query RPC" =
 let%expect_test "login RPC" =
   print_s
     [%sexp
-      (Rpc.Rpc.shapes Rpc_protocol.login_rpc
-       : Async_rpc_kernel.Rpc_shapes.t)];
+      (Rpc.Rpc.shapes Rpc_protocol.login_rpc : Async_rpc_kernel.Rpc_shapes.t)];
   [%expect
     {|
     (Rpc (query d9a8da25d5656b016fb4dbdc2e4197fb)
@@ -88,5 +87,14 @@ let%expect_test "audit-log RPC" =
      (update_response 433bb29b66b02afe94a1cd264b00ab2b)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
+  return ()
+;;
+
+let%expect_test "session-feed RPC" =
+  print_s
+    [%sexp
+      (Rpc.Pipe_rpc.shapes Rpc_protocol.session_feed_rpc
+       : Async_rpc_kernel.Rpc_shapes.t)];
+  [%expect];
   return ()
 ;;

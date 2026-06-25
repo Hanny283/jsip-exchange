@@ -45,7 +45,7 @@ let login_rpc =
     ~name:"login-participant"
     ~version:1
     ~bin_query:String.bin_t
-    ~bin_response:Participant.bin_t
+    ~bin_response:[%bin_type_class: Participant.t Or_error.t]
     ~include_in_error_count:Only_on_exn
 ;;
 
