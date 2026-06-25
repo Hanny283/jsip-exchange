@@ -55,6 +55,8 @@ val count : t -> Side.t -> int
     side. *)
 val best_bid_offer : t -> Bbo.t
 
+val best_price : t -> Side.t -> Price.t option
+
 (** Create a read-only snapshot of the book suitable for sending over RPC or
     displaying. Orders are sorted by price (best first). *)
 val snapshot : t -> Book.t

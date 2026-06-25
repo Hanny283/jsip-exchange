@@ -32,8 +32,15 @@ let parse_book_or_subscribe parts =
 
 let parse_buy_or_sell ?default_participant parts side =
   match parts with
-  | symbol_str :: size_str :: price_str :: rest ->
+  | client_order_id_str :: symbol_str :: size_str :: price_str :: rest ->
     let open Result.Let_syntax in
+    let%bind client_order_id =
+      match Int.of_string_opt client_order_id_str with
+      | Some int ->
+        ignore int;
+        Ok (Client_order_id.of_string client_order_id_str)
+      | None -> Or_error.error_string "Request must have client_order_id"
+    in
     let%bind size =
       match Int.of_string_opt size_str with
       | Some n when n > 0 -> Ok n
@@ -57,7 +64,9 @@ let parse_buy_or_sell ?default_participant parts side =
     let%bind time_in_force, rest =
       match rest with
       | tif_str :: rest' ->
-        (match Or_error.try_with (fun () -> Time_in_force.of_string tif_str) with
+        (match
+           Or_error.try_with (fun () -> Time_in_force.of_string tif_str)
+         with
          | Ok tif -> Ok (tif, rest')
          | Error _ ->
            (* Not a time-in-force. If it's the start of an "as <name>"
@@ -92,6 +101,7 @@ let parse_buy_or_sell ?default_participant parts side =
        ; price
        ; size = Size.of_int size
        ; time_in_force
+       ; client_order_id
        }
        : Order.Request.t)
   | _ ->

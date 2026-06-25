@@ -1,0 +1,215 @@
+File "lib/gateway/src/exchange_server.ml", line 69, characters 0-2:
+69 | ;;
+     ^^
+Error: Syntax error
+File "lib/types/src/fill.ml", line 1:
+Error: The implementation "lib/types/src/fill.ml"
+       does not match the interface "lib/types/src/.jsip_types.objs/byte/jsip_types__Fill.cmi":
+        Type declarations do not match:
+          type t = {
+            fill_id : int;
+            symbol : Symbol/2.t;
+            price : Price/2.t;
+            size : Size/2.t;
+            aggressor_order_id : Order_id/2.t;
+            aggressor_participant : Participant/2.t;
+            aggressor_side : Side/2.t;
+            resting_order_id : Order_id/2.t;
+            resting_participant : Participant/2.t;
+            aggressor_client_order_id : Client_order_id.t;
+            resting_client_order_id : Client_order_id.t;
+          }
+        is not included in
+          type t = {
+            fill_id : int;
+            symbol : Symbol/1.t;
+            price : Price/1.t;
+            size : Size/1.t;
+            aggressor_order_id : Order_id/1.t;
+            aggressor_participant : Participant/1.t;
+            aggressor_side : Side/1.t;
+            resting_order_id : Order_id/1.t;
+            resting_participant : Participant/1.t;
+          }
+        10. An extra field, "aggressor_client_order_id", is provided in the first declaration.
+        11. An extra field, "resting_client_order_id", is provided in the first declaration.
+        File "lib/types/src/fill.mli", lines 10-22, characters 0-25:
+          Expected declaration
+        File "lib/types/src/fill.ml", lines 3-16, characters 0-25:
+          Actual declaration
+File "lib/order_book/src/order_book.ml", line 1:
+Error: The implementation "lib/order_book/src/order_book.ml"
+       does not match the interface "lib/order_book/src/.jsip_order_book.objs/byte/jsip_order_book__Order_book.cmi":
+        In module "For_testing":
+       Modules do not match:
+         sig val remove : t -> Jsip_types.Order_id.t -> unit end
+       is not included in
+         sig
+           val remove :
+             t -> Jsip_types.Order_id.t -> Jsip_types.Order.t option
+         end
+       In module "For_testing":
+       Values do not match:
+         val remove : t -> Jsip_types.Order_id.t -> unit
+       is not included in
+         val remove : t -> Jsip_types.Order_id.t -> Jsip_types.Order.t option
+       The type "t -> Jsip_types.Order_id.t -> unit"
+       is not compatible with the type
+         "t -> Jsip_types.Order_id.t -> Jsip_types.Order.t option"
+       Type "unit" is not compatible with type "Jsip_types.Order.t option"
+       File "lib/order_book/src/order_book.mli", line 70, characters 2-48:
+         Expected declaration
+       File "lib/order_book/src/order_book.ml", line 193, characters 6-12:
+         Actual declaration
+File "lib/order_book/src/matching_engine.ml", lines 109-110, characters 4-74:
+109 | ....( order_id
+110 |     , List.concat [ [ accepted ]; fill_events; post_events; bbo_events ] )
+Error: This expression has type "'a * 'b"
+       but an expression was expected of type "Exchange_event.t list"
+File "lib/gateway/src/protocol.ml", line 16, characters 6-67:
+16 |       { order_id; participant = _; symbol; remaining_size; reason } ->
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error (warning 9 [missing-record-field-pattern]): the following labels are not bound in this record pattern:
+client_order_id
+Either bind these labels explicitly or add '; _' to the pattern.
+File "lib/gateway/src/rpc_protocol.ml", line 1:
+Error: The implementation "lib/gateway/src/rpc_protocol.ml"
+       does not match the interface "lib/gateway/src/.jsip_gateway.objs/byte/jsip_gateway__Rpc_protocol.cmi":
+        Values do not match:
+          val session_feed_rpc :
+            ?client_pushes_back:unit ->
+            unit ->
+            (unit, Jsip_types.Exchange_event.t, Core.Error.t)
+            Async_rpc_kernel.Rpc.Pipe_rpc.t
+        is not included in
+          val session_feed_rpc :
+            (unit, Jsip_types.Exchange_event.t, Core.Error.t)
+            Async_rpc_kernel.Rpc.Pipe_rpc.t
+        The type
+          "?client_pushes_back:unit ->
+          unit ->
+          (unit, Jsip_types.Exchange_event.t, Core.Error.t)
+          Async_rpc_kernel.Rpc.Pipe_rpc.t"
+        is not compatible with the type
+          "(unit, Jsip_types.Exchange_event.t, Core.Error.t)
+          Async_rpc_kernel.Rpc.Pipe_rpc.t"
+        File "lib/gateway/src/rpc_protocol.mli", line 55, characters 0-71:
+          Expected declaration
+        File "lib/gateway/src/rpc_protocol.ml", line 52, characters 4-20:
+          Actual declaration
+File "lib/gateway/src/participant_state.ml", line 1:
+Error: The implementation "lib/gateway/src/participant_state.ml"
+       does not match the interface "lib/gateway/src/.jsip_gateway.objs/byte/jsip_gateway__Participant_state.cmi":
+        Values do not match:
+          val client_orders :
+            t -> Jsip_types.Order.t Jsip_types.Client_order_id.Table.t
+        is not included in
+          val client_orders : t -> Jsip_types.Client_order_id.Hash_set.t
+        The type "t -> Jsip_types.Order.t Jsip_types.Client_order_id.Table.t"
+        is not compatible with the type
+          "t -> Jsip_types.Client_order_id.Hash_set.t"
+        Type
+          "Jsip_types.Order.t Jsip_types.Client_order_id.Table.t" =
+            "(Jsip_types.Client_order_id.t, Jsip_types.Order.t) Base.Hashtbl.t"
+        is not compatible with type
+          "Jsip_types.Client_order_id.Hash_set.t" =
+            "Jsip_types.Client_order_id.t Base.Hash_set.t"
+        File "lib/gateway/src/participant_state.mli", line 7, characters 0-51:
+          Expected declaration
+        File "lib/gateway/src/participant_state.ml", line 10, characters 4-17:
+          Actual declaration
+File "lib/gateway/src/dispatcher.ml", line 1:
+Error: The implementation "lib/gateway/src/dispatcher.ml"
+       does not match the interface "lib/gateway/src/.jsip_gateway.objs/byte/jsip_gateway__Dispatcher.cmi":
+        Values do not match:
+          val push_client_order_to_order_table :
+            ('a, 'b) Base.Hashtbl.t -> 'a -> 'b -> unit
+        is not included in
+          val push_client_order_to_order_table :
+            t -> Jsip_types.Client_order_id.t -> Jsip_types.Order.t -> unit
+        The type "('a, 'b) Base.Hashtbl.t -> 'a -> 'b -> unit"
+        is not compatible with the type
+          "t -> Jsip_types.Client_order_id.t -> Jsip_types.Order.t -> unit"
+        Type "('a, 'b) Base.Hashtbl.t" is not compatible with type "t"
+        File "lib/gateway/src/dispatcher.mli", lines 32-36, characters 0-9:
+          Expected declaration
+        File "lib/gateway/src/dispatcher.ml", line 21, characters 4-36:
+          Actual declaration
+File "lib/test_harness/src/harness.ml", lines 38-44, characters 2-3:
+38 | ..{ symbol
+39 |   ; participant
+40 |   ; side
+41 |   ; price = Price.of_int_cents price_cents
+42 |   ; size = Size.of_int size
+43 |   ; time_in_force
+44 |   }
+Error: Some record fields are undefined: "client_order_id"
+File "lib/test_harness/src/e2e_helpers.ml", line 21, characters 11-30:
+21 |   let%bind (_ : Participant.t) =
+                ^^^^^^^^^^^^^^^^^^^
+Error: This pattern matches values of type "Participant.t"
+       but a pattern was expected which matches values of type
+         "Participant.t Or_error.t" = "(Participant.t, Core.Error.t) result"
+File "app/market_maker/src/market_maker.ml", lines 38-44, characters 11-12:
+38 | ...........{ symbol = config.symbol
+39 |            ; participant = config.participant
+40 |            ; side = Buy
+41 |            ; price = Price.of_int_cents (config.fair_value_cents - offset)
+42 |            ; size = Size.of_int config.size_per_level
+43 |            ; time_in_force = Day
+44 |            }
+Error: Some record fields are undefined: "client_order_id"
+File "lib/order_book/test/test_order_book.ml", lines 15-21, characters 5-6:
+15 | .....{ symbol = Harness.aapl
+16 |      ; participant
+17 |      ; side
+18 |      ; price = Price.of_int_cents price_cents
+19 |      ; size = Size.of_int size
+20 |      ; time_in_force = Day
+21 |      }
+Error: Some record fields are undefined: "client_order_id"
+File "lib/gateway/test/test_protocol.ml", lines 17-23, characters 12-13:
+17 | ............{ symbol = Symbol.of_string "AAPL"
+18 |             ; participant = Participant.of_string "Alice"
+19 |             ; side = Buy
+20 |             ; price = Price.of_int_cents 15000
+21 |             ; size = Size.of_int 100
+22 |             ; time_in_force = Day
+23 |             }
+Error: Some record fields are undefined: "client_order_id"
+File "app/bots/test/test_bots.ml", lines 96-102, characters 13-14:
+ 96 | .............{ symbol = aapl
+ 97 |              ; participant = alice
+ 98 |              ; side = Buy
+ 99 |              ; price = Price.of_int_cents 15000
+100 |              ; size = Size.of_int 10
+101 |              ; time_in_force = Day
+102 |              }
+Error: Some record fields are undefined: "client_order_id"
+File "lib/bot_runtime/test/test_bot_runtime.ml", lines 88-94, characters 8-9:
+88 | ........{ symbol = aapl
+89 |         ; participant = alice
+90 |         ; side = Buy
+91 |         ; price = Price.of_int_cents 15000
+92 |         ; size = Size.of_int 10
+93 |         ; time_in_force = Day
+94 |         }
+Error: Some record fields are undefined: "client_order_id"
+File "lib/types/test/test_order.ml", lines 15-21, characters 2-3:
+15 | ..{ symbol = Symbol.of_string symbol
+16 |   ; participant = Participant.of_string participant
+17 |   ; side
+18 |   ; price = Price.of_int_cents price_cents
+19 |   ; size = Size.of_int size
+20 |   ; time_in_force
+21 |   }
+Error: Some record fields are undefined: "client_order_id"
+File "lib/order_book/bench/bench_order_book.ml", lines 57-63, characters 8-9:
+57 | ........{ symbol = aapl
+58 |         ; participant = bob
+59 |         ; side = Sell
+60 |         ; price = Price.of_int_cents (min_price + i)
+61 |         ; size = Size.of_int 100
+62 |         ; time_in_force = Day
+63 |         }
+Error: Some record fields are undefined: "client_order_id"

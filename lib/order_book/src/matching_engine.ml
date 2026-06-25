@@ -91,6 +91,7 @@ let submit t (request : Order.Request.t) =
               ; symbol = Order.symbol order
               ; remaining_size = Order.remaining_size order
               ; reason = Ioc_remainder
+              ; client_order_id = request.client_order_id
               }
           ])
       else []

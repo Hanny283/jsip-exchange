@@ -29,6 +29,45 @@ let handle_submit ~request_writer (request : Order.Request.t) =
   Ok ()
 ;;
 
+let handle_cancel_order
+  (dispatcher : Dispatcher.t)
+  (participant : Participant.t)
+  (book : Order_book.t)
+  (client_order_id : Client_order_id.t)
+  =
+  let order = Dispatcher.get_order dispatcher client_order_id in
+  match order with
+  | Some order ->
+    Dispatcher.remove_from_order_table dispatcher client_order_id;
+    Order_book.remove book (Order.order_id order);
+    Dispatcher.dispatch
+      dispatcher
+      [ Order_cancel
+          { order_id = Order.order_id order
+          ; participant
+          ; symbol = Order.symbol order
+          ; remaining_size = Order.size order
+          ; reason = Participant_requested
+          ; client_order_id
+          }
+      ];
+    Option.iter
+      (Order_book.best_price book (Order.side order))
+      ~f:(fun best_price ->
+        if Price.to_int_cents best_price
+           = Price.to_int_cents (Order.price order)
+        then
+          Dispatcher.dispatch
+            dispatcher
+            [ Best_bid_offer_update
+                { symbol = Order.symbol order
+                ; bbo = Order_book.best_bid_offer book
+                }
+            ]
+        else ())
+  | None -> _
+;;
+
 let handle_session_feed (state : Connection_state.t) =
   match state.session with
   | None -> Error.raise (Error.of_string "not logged in ")
@@ -39,12 +78,22 @@ let start_matching_loop ~engine ~dispatcher request_reader =
   don't_wait_for
     (Pipe.iter_without_pushback request_reader ~f:(fun request ->
        let events = Matching_engine.submit engine request in
+       let _ =
+         match events with
+         | Order_accept { order_id; _ } :: _ ->
+           Dispatcher.push_client_order_to_order_table
+             dispatcher
+             request.client_order_id
+             order_id
+         | _ -> ()
+       in
        Dispatcher.dispatch dispatcher events))
 ;;
 
 let start ~symbols ~port () =
   let engine = Matching_engine.create symbols in
-  let generator = Client_order_id.Generator.create () in
+  let book = Matching_engine.book engine in
+  let client_generator = Client_order_id.Generator.create () in
   let dispatcher = Dispatcher.create () in
   let request_reader, request_writer = Pipe.create () in
   Pipe.set_size_budget request_writer request_queue_size_budget;
@@ -68,7 +117,7 @@ let start ~symbols ~port () =
                    ; size = request.size
                    ; time_in_force = request.time_in_force
                    ; client_order_id =
-                       Client_order_id.Generator.next generator
+                       Client_order_id.Generator.next client_generator
                    }
                  in
                  let participant_state_table =
