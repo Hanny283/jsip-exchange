@@ -48,6 +48,19 @@ let%expect_test "book-query RPC" =
   return ()
 ;;
 
+let%expect_test "login RPC" =
+  print_s
+    [%sexp
+      (Rpc.Rpc.shapes Rpc_protocol.login_rpc
+       : Async_rpc_kernel.Rpc_shapes.t)];
+  [%expect
+    {|
+    (Rpc (query d9a8da25d5656b016fb4dbdc2e4197fb)
+     (response d9a8da25d5656b016fb4dbdc2e4197fb))
+    |}];
+  return ()
+;;
+
 let%expect_test "market-data RPC" =
   print_s
     [%sexp
