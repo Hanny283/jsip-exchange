@@ -29,28 +29,44 @@ let handle_submit ~request_writer (request : Order.Request.t) =
   Ok ()
 ;;
 
+let get_order dispatcher participant client_order_id =
+  let participant_state_table = Dispatcher.state_table dispatcher in
+  let participant_state =
+    Hashtbl.find_exn participant_state_table participant
+  in
+  Participant_state.get_order participant_state client_order_id
+;;
+
 let handle_cancel_order
+  ~(event_writer : Exchange_event.t Pipe.Writer.t)
   (dispatcher : Dispatcher.t)
   (participant : Participant.t)
   (book : Order_book.t)
   (client_order_id : Client_order_id.t)
   =
-  let order = Dispatcher.get_order dispatcher client_order_id in
+  let participant_state_table = Dispatcher.state_table dispatcher in
+  let participant_state =
+    Hashtbl.find_exn participant_state_table participant
+  in
+  let order =
+    Participant_state.get_order participant_state client_order_id
+  in
   match order with
   | Some order ->
-    Dispatcher.remove_from_order_table dispatcher client_order_id;
+    Participant_state.remove_order participant_state client_order_id;
     Order_book.remove book (Order.order_id order);
-    Dispatcher.dispatch
-      dispatcher
-      [ Order_cancel
-          { order_id = Order.order_id order
-          ; participant
-          ; symbol = Order.symbol order
-          ; remaining_size = Order.size order
-          ; reason = Participant_requested
-          ; client_order_id
-          }
-      ];
+    let (event : Exchange_event.t) =
+      Order_cancel
+        { order_id = Order.order_id order
+        ; participant = Order.participant order
+        ; symbol = Order.symbol order
+        ; remaining_size = Order.size order
+        ; reason = Participant_requested
+        ; client_order_id = Order.client_order_id order
+        }
+    in
+    Dispatcher.dispatch dispatcher [ event ];
+    let%map () = Pipe.write_if_open event_writer event in
     Option.iter
       (Order_book.best_price book (Order.side order))
       ~f:(fun best_price ->
@@ -65,7 +81,14 @@ let handle_cancel_order
                 }
             ]
         else ())
-  | None -> _
+  | None ->
+    let (event : Exchange_event.t) =
+      Cancel_reject
+        { participant; client_order_id; reason = "Already filled" }
+    in
+    Dispatcher.dispatch dispatcher [ event ];
+    let%map () = Pipe.write_if_open event_writer event in
+    ()
 ;;
 
 let handle_session_feed (state : Connection_state.t) =
@@ -80,11 +103,19 @@ let start_matching_loop ~engine ~dispatcher request_reader =
        let events = Matching_engine.submit engine request in
        let _ =
          match events with
-         | Order_accept { order_id; _ } :: _ ->
-           Dispatcher.push_client_order_to_order_table
-             dispatcher
-             request.client_order_id
-             order_id
+         | Order_accept { order_id; request } :: _ ->
+           let participant_state =
+             Hashtbl.find
+               (Dispatcher.state_table dispatcher)
+               request.participant
+           in
+           (match participant_state with
+            | Some participant_state ->
+              Participant_state.push_to_client_orders
+                participant_state
+                request.client_order_id
+                (Order.create request ~order_id)
+            | None -> ())
          | _ -> ()
        in
        Dispatcher.dispatch dispatcher events))
@@ -93,8 +124,8 @@ let start_matching_loop ~engine ~dispatcher request_reader =
 let start ~symbols ~port () =
   let engine = Matching_engine.create symbols in
   let book = Matching_engine.book engine in
-  let client_generator = Client_order_id.Generator.create () in
   let dispatcher = Dispatcher.create () in
+  let event_reader, event_writer = Pipe.create () in
   let request_reader, request_writer = Pipe.create () in
   Pipe.set_size_budget request_writer request_queue_size_budget;
   start_matching_loop ~engine ~dispatcher request_reader;
@@ -116,8 +147,7 @@ let start ~symbols ~port () =
                    ; price = request.price
                    ; size = request.size
                    ; time_in_force = request.time_in_force
-                   ; client_order_id =
-                       Client_order_id.Generator.next client_generator
+                   ; client_order_id = request.client_order_id
                    }
                  in
                  let participant_state_table =
@@ -126,10 +156,12 @@ let start ~symbols ~port () =
                  let participant_state =
                    Hashtbl.find_exn participant_state_table participant
                  in
-                 let client_orders =
+                 let client_order_to_order_table =
                    Participant_state.client_orders participant_state
                  in
-                 if Hash_set.mem client_orders rq.client_order_id
+                 if Hashtbl.mem
+                      client_order_to_order_table
+                      rq.client_order_id
                  then (
                    Dispatcher.dispatch
                      dispatcher
@@ -179,6 +211,42 @@ let start ~symbols ~port () =
             Rpc_protocol.session_feed_rpc
             (fun (state : Connection_state.t) () ->
                Deferred.return (handle_session_feed state))
+        ; Rpc.Rpc.implement
+            Rpc_protocol.cancel_order_rpc
+            (fun (state : Connection_state.t) client_order_id ->
+               let participant = Connection_state.participant state in
+               let order =
+                 match participant with
+                 | Some participant ->
+                   get_order dispatcher participant client_order_id
+                 | None -> None
+               in
+               let symbol =
+                 match order with
+                 | Some order -> Some (Order.symbol order)
+                 | None -> None
+               in
+               let order_book =
+                 match symbol with
+                 | Some symbol -> Matching_engine.book engine symbol
+                 | None -> None
+               in
+               match order_book, participant with
+               | Some order_book, Some participant ->
+                 let%bind () =
+                   handle_cancel_order
+                     ~event_writer
+                     dispatcher
+                     participant
+                     order_book
+                     client_order_id
+                 in
+                 Deferred.Or_error.ok_unit
+               | _, _ ->
+                 Deferred.return
+                   (Error0
+                      (Error.of_string
+                         "Cancel failed: no related order or participant")))
         ]
       ~on_unknown_rpc:`Close_connection
       ~on_exception:Log_on_background_exn

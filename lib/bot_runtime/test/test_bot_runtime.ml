@@ -4,6 +4,7 @@ open Jsip_types
 open Jsip_fundamental
 open Jsip_bot_runtime
 
+let generator = Client_order_id.Generator.create ()
 let aapl = Symbol.of_string "AAPL"
 let alice = Participant.of_string "Alice"
 let bob = Participant.of_string "Bob"
@@ -78,6 +79,8 @@ let fill_event : Exchange_event.t =
     ; aggressor_side = Buy
     ; resting_order_id = Order_id.For_testing.of_int 2
     ; resting_participant = bob
+    ; aggressor_client_order_id = Client_order_id.Generator.next generator
+    ; resting_client_order_id = Client_order_id.Generator.next generator
     }
 ;;
 
@@ -91,6 +94,7 @@ let accepted_event : Exchange_event.t =
         ; price = Price.of_int_cents 15000
         ; size = Size.of_int 10
         ; time_in_force = Day
+        ; client_order_id = Client_order_id.Generator.next generator
         }
     }
 ;;

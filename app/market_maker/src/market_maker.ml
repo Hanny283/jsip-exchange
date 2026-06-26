@@ -15,6 +15,8 @@ module Config = struct
   [@@deriving sexp_of]
 end
 
+let generator = Client_order_id.Generator.create ()
+
 let seed_book (config : Config.t) conn =
   let submit request =
     let%map result =
@@ -41,6 +43,7 @@ let seed_book (config : Config.t) conn =
            ; price = Price.of_int_cents (config.fair_value_cents - offset)
            ; size = Size.of_int config.size_per_level
            ; time_in_force = Day
+           ; client_order_id = Client_order_id.Generator.next generator
            }
            : Order.Request.t)
       and () =
@@ -51,6 +54,7 @@ let seed_book (config : Config.t) conn =
            ; price = Price.of_int_cents (config.fair_value_cents + offset)
            ; size = Size.of_int config.size_per_level
            ; time_in_force = Day
+           ; client_order_id = Client_order_id.Generator.next generator
            }
            : Order.Request.t)
       in

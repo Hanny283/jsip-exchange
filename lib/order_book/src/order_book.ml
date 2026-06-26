@@ -69,7 +69,7 @@ let add t order =
     update_best t order
 ;;
 
-let remove t order_id =
+let remove' t order_id =
   let order = Map.find t.identifiers order_id in
   match order with
   | None -> ()
@@ -190,5 +190,5 @@ let snapshot t =
 ;;
 
 module For_testing = struct
-  let remove = remove
+  let remove = remove'
 end

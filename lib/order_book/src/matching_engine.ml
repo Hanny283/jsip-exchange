@@ -46,6 +46,8 @@ let rec match_loop ~book ~order ~fill_id =
           ; aggressor_side = Order.side order
           ; resting_order_id = Order.order_id resting
           ; resting_participant = Order.participant resting
+          ; aggressor_client_order_id = Order.client_order_id order
+          ; resting_client_order_id = Order.client_order_id order
           }
       in
       let trade_event =

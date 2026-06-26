@@ -1,6 +1,7 @@
 open! Core
 open! Async
 open Jsip_types
+open Participant_state
 
 type t =
   { market_data_subscribers_by_symbol :
@@ -13,19 +14,9 @@ let create () =
   { market_data_subscribers_by_symbol = Symbol.Table.create ()
   ; audit_subscribers = Bag.create ()
   ; participant_state_table = Participant.Table.create ()
-  ; client_order_to_order_table = Client_order_id.Table.create ()
   }
 ;;
 
-let push_client_order_to_order_table t client_order_id order =
-  Hashtbl.add_exn t ~key:client_order_id ~data:order
-;;
-
-let remove_from_order_table t (client_order_id : Client_order_id.t) =
-  Hashtbl.remove t.client_order_to_order_table client_order_id
-;;
-
-let get_order t client_order_id = Hashtbl.find t client_order_id
 let state_table (t : t) = t.participant_state_table
 
 let clean_up_session (t : t) (session : Session.t) : unit Deferred.t =
@@ -110,6 +101,8 @@ let push_to_session t participant event =
 let dispatch_event t (event : Exchange_event.t) =
   push_audit t event;
   match event with
+  | Cancel_reject { participant; client_order_id = _; reason = _ } ->
+    push_to_session t participant event
   | Best_bid_offer_update { symbol; bbo = _ } ->
     push_market_data t event symbol
   | Trade_report { symbol; price = _; size = _ } ->
@@ -136,6 +129,8 @@ let dispatch_event t (event : Exchange_event.t) =
       ; aggressor_side = _
       ; resting_order_id = _
       ; resting_participant
+      ; aggressor_client_order_id = _
+      ; resting_client_order_id = _
       } ->
     push_to_session t aggressor_participant event;
     push_to_session t resting_participant event

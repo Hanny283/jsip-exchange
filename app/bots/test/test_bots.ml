@@ -7,6 +7,8 @@ open Jsip_fundamental
 open Jsip_bot_runtime
 open! Jsip_bots
 
+
+let generator = Client_order_id.Generator.create ()
 let aapl = Symbol.of_string "AAPL"
 let alice = Participant.of_string "Alice"
 
@@ -99,6 +101,7 @@ let%expect_test "make_recording_bot wires up a runnable bot" =
              ; price = Price.of_int_cents 15000
              ; size = Size.of_int 10
              ; time_in_force = Day
+             ; client_order_id = 
              }
          })
   in

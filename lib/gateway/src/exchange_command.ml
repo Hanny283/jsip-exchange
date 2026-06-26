@@ -7,6 +7,7 @@ module Verb = struct
     | Sell
     | Book
     | Subscribe
+    | Cancel
   [@@deriving string ~case_insensitive ~capitalize:"SCREAMING_SNAKE_CASE"]
 end
 
@@ -14,6 +15,7 @@ type t =
   | Submit of Order.Request.t
   | Book of Symbol.t
   | Subscribe of Symbol.t
+  | Cancel of Client_order_id.t
 
 let parse_book_or_subscribe parts =
   match parts with
@@ -27,6 +29,23 @@ let parse_book_or_subscribe parts =
           [%string "invalid symbol: %{symbol_str}\nexception: %{exn_str}"]
     in
     Ok symbol
+  | [] -> Or_error.error_string "Bug: Impossible Case"
+;;
+
+let parse_cancel parts =
+  match parts with
+  | client_order_id_str :: _ ->
+    let open Result.Let_syntax in
+    let%bind client_order_id =
+      try Ok (Client_order_id.of_string client_order_id_str) with
+      | exn ->
+        let exn_str = Exn.to_string exn in
+        Or_error.error_string
+          [%string
+            "invalid client_order_id: %{client_order_id_str}\n\
+             exception: %{exn_str}"]
+    in
+    Ok client_order_id
   | [] -> Or_error.error_string "Bug: Impossible Case"
 ;;
 
@@ -106,7 +125,7 @@ let parse_buy_or_sell ?default_participant parts side =
        : Order.Request.t)
   | _ ->
     Or_error.error_string
-      ("expected: BUY|SELL <symbol> <size> <price> "
+      ("expected: BUY|SELL <client_order_id> <symbol> <size> <price> "
        ^ "["
        ^ Time_in_force.all_str
        ^ "]"
@@ -145,7 +164,9 @@ let parse ?default_participant command =
       | Ok Subscribe ->
         Or_error.map
           ~f:(fun element -> Subscribe element)
-          (parse_book_or_subscribe parts))
+          (parse_book_or_subscribe parts)
+      | Ok Cancel ->
+        Or_error.map ~f:(fun element -> Cancel element) (parse_cancel parts))
 ;;
 
 (* let parse_command line = let line = String.strip line in if

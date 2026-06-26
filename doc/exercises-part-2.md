@@ -333,7 +333,6 @@ Update the text protocol:
 BUY <client_id> <symbol> <size> <price> [DAY|IOC]
 ```
 
-For example, `BUY 42 AAPL 100 150.00` submits an order with
 client order ID 42. The participant is known from the login.
 
 Events must carry the client order ID so a participant can correlate them with its own

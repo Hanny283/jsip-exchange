@@ -13,9 +13,16 @@ let format_event = function
       (Time_in_force.to_string request.time_in_force)
   | Fill fill -> [%string "FILL %{fill#Fill}"]
   | Order_cancel
-      { order_id; participant = _; symbol; remaining_size; reason } ->
+      { order_id
+      ; participant = _
+      ; symbol
+      ; remaining_size
+      ; reason
+      ; client_order_id
+      } ->
     sprintf
-      "CANCELLED id=%s %s remaining=%d reason=%s"
+      "CANCELLED client_id=%s id=%s %s remaining=%d reason=%s"
+      (Client_order_id.to_string client_order_id)
       (Order_id.to_string order_id)
       (Symbol.to_string symbol)
       (Size.to_int remaining_size)
@@ -35,6 +42,10 @@ let format_event = function
   | Trade_report { symbol; price; size } ->
     let size = Size.to_int size in
     [%string "TRADE %{symbol#Symbol} %{price#Price} x%{size#Int}"]
+  | Cancel_reject { participant; client_order_id; reason } ->
+    [%string
+      "CANCEL: %{participant#Participant} \
+       %{client_order_id#Client_order_id} %{reason}"]
 ;;
 
 let format_events events =

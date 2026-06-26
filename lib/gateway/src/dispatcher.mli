@@ -29,15 +29,6 @@ val create : unit -> t
 
 val state_table : t -> Participant_state.t Participant.Table.t
 
-val push_client_order_to_order_table
-  :  t
-  -> Client_order_id.t
-  -> Order.t
-  -> unit
-
-val remove_from_order_table : t -> Client_order_id.t -> unit
-val get_order : t -> Client_order_id.t -> Order.t option
-
 (** Subscribe to public market data for one or more [symbols]. The same pipe
     receives events for every requested symbol; the dispatcher avoids
     duplicates so a subscriber listed against multiple symbols only sees each
