@@ -16,7 +16,8 @@ module Category = struct
   ;;
 
   let of_event : Exchange_event.t -> t = function
-    | Order_accept _ | Order_cancel _ | Order_reject _ -> Order_lifecycle
+    | Order_accept _ | Order_cancel _ | Order_reject _ | Cancel_reject _ ->
+      Order_lifecycle
     | Fill _ -> Trade
     | Best_bid_offer_update _ | Trade_report _ -> Market_data
   ;;
@@ -48,6 +49,7 @@ module Color = struct
     | Fill _ -> Cyan
     | Order_cancel _ -> Yellow
     | Order_reject _ -> Red
+    | Cancel_reject _ -> Red
     | Best_bid_offer_update _ -> Blue
     | Trade_report _ -> Magenta
   ;;

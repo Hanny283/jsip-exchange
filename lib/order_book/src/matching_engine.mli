@@ -20,9 +20,28 @@ val create : Symbol.t list -> t
     an acceptance or rejection, followed by any fills, and possibly a
     cancellation of unfilled remainder (for IOC orders).
 
+    The request's [client_order_id] must be unused by its participant; a
+    repeat id produces an [Order_reject] instead of an acceptance. Accepted
+    ids stay reserved permanently (even after the order fills or cancels), so
+    a client can never reuse one.
+
     The event list is always non-empty (at minimum an acceptance or
     rejection). *)
 val submit : t -> Order.Request.t -> Exchange_event.t list
+
+(** {2 Cancellation} *)
+
+(** Cancel the order identified by [(participant, client_order_id)] — the pair
+    the client used to submit it. A still-resting order is removed from its
+    book and reported with [Order_cancel] (followed by a
+    [Best_bid_offer_update] if the best price on that side moved). An id that
+    was never used, or whose order has already left the book (filled or
+    previously cancelled), yields a single [Cancel_reject]. *)
+val cancel
+  :  t
+  -> participant:Participant.t
+  -> client_order_id:Client_order_id.t
+  -> Exchange_event.t list
 
 (** {2 Queries} *)
 

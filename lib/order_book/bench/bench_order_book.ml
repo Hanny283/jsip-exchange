@@ -60,6 +60,7 @@ let book_with_n_asks ?(min_price = 10_000) n =
         ; price = Price.of_int_cents (min_price + i)
         ; size = Size.of_int 100
         ; time_in_force = Day
+        ; client_order_id = Client_order_id.of_string (Int.to_string i)
         }
         ~order_id:(Order_id.Generator.next gen)
     in
@@ -81,6 +82,7 @@ let engine_with_n_asks ?(min_price = 10_000) n =
          ; price = Price.of_int_cents (min_price + i)
          ; size = Size.of_int 100
          ; time_in_force = Day
+         ; client_order_id = Client_order_id.of_string (Int.to_string i)
          }
        : Exchange_event.t list)
   done;

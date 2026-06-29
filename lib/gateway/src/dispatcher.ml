@@ -1,44 +1,48 @@
 open! Core
 open! Async
 open Jsip_types
-open Participant_state
 
 type t =
   { market_data_subscribers_by_symbol :
       Exchange_event.t Pipe.Writer.t Bag.t Symbol.Table.t
   ; audit_subscribers : Exchange_event.t Pipe.Writer.t Bag.t
-  ; participant_state_table : Participant_state.t Participant.Table.t
+  ; sessions : Session.t Participant.Table.t
   }
 
 let create () =
   { market_data_subscribers_by_symbol = Symbol.Table.create ()
   ; audit_subscribers = Bag.create ()
-  ; participant_state_table = Participant.Table.create ()
+  ; sessions = Participant.Table.create ()
   }
 ;;
 
-let state_table (t : t) = t.participant_state_table
+let find_session (t : t) participant = Hashtbl.find t.sessions participant
 
+(* Tear down a session: close its outbound pipe and drop it from the
+   registry so the participant's name is free to log in again. The
+   [phys_equal] guard means a stale connection's close hook can't evict a
+   newer session that has since taken the same name. *)
 let clean_up_session (t : t) (session : Session.t) : unit Deferred.t =
   let participant = Session.participant session in
-  if Hashtbl.mem t.participant_state_table participant
-  then Deferred.return (Session.close session)
-  else Deferred.return ()
+  Session.close session;
+  (match Hashtbl.find t.sessions participant with
+   | Some current when phys_equal current session ->
+     Hashtbl.remove t.sessions participant
+   | _ -> ());
+  Deferred.return ()
 ;;
 
 let set_up_session (t : t) (participant : Participant.t) : unit Deferred.t =
-  let participant_state =
-    Hashtbl.find t.participant_state_table participant
-  in
+  (* Callers (the login handler) only reach here once they've decided it's
+     safe to (re)register — i.e. no live session already holds this name. A
+     leftover closed session is cleaned up first so the [Hashtbl.set] below
+     installs a fresh one. *)
   let%bind () =
-    match (participant_state : Participant_state.t option) with
+    match Hashtbl.find t.sessions participant with
     | None -> Deferred.return ()
-    | Some state -> clean_up_session t (Participant_state.session state)
+    | Some existing -> clean_up_session t existing
   in
-  Hashtbl.add_exn
-    t.participant_state_table
-    ~data:(Participant_state.create (Session.create participant))
-    ~key:participant;
+  Hashtbl.set t.sessions ~key:participant ~data:(Session.create participant);
   Deferred.return ()
 ;;
 
@@ -90,12 +94,9 @@ let push_audit t event =
 ;;
 
 let push_to_session t participant event =
-  let participant_state =
-    Hashtbl.find t.participant_state_table participant
-  in
-  match participant_state with
+  match Hashtbl.find t.sessions participant with
   | None -> ()
-  | Some state -> Session.push (Participant_state.session state) event
+  | Some session -> Session.push session event
 ;;
 
 let dispatch_event t (event : Exchange_event.t) =

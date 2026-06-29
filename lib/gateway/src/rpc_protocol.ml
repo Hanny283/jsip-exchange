@@ -51,7 +51,7 @@ let login_rpc =
 
 let session_feed_rpc =
   Rpc.Pipe_rpc.create
-    ~name:"sesion-feed"
+    ~name:"session-feed"
     ~version:1
     ~bin_query:Unit.bin_t
     ~bin_response:Exchange_event.bin_t
@@ -61,7 +61,7 @@ let session_feed_rpc =
 
 let cancel_order_rpc =
   Rpc.Rpc.create
-    ~name:"cancel-reject"
+    ~name:"cancel-order"
     ~version:1
     ~bin_query:Client_order_id.bin_t
     ~bin_response:[%bin_type_class: unit Or_error.t]

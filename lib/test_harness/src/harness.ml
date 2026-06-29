@@ -25,6 +25,11 @@ let engine t = t.engine
 
 (* --- Builders --- *)
 
+(* The matching engine rejects a repeated [(participant, client_order_id)], so
+   builders hand out a fresh id on every call unless the test pins one
+   explicitly. Tests that care about a specific id pass [~client_order_id]. *)
+let client_order_id_gen = Client_order_id.Generator.create ()
+
 let make_request
   ~side
   ~price_cents
@@ -32,6 +37,7 @@ let make_request
   ?(symbol = aapl)
   ?(participant = alice)
   ?(time_in_force = Time_in_force.Day)
+  ?(client_order_id = Client_order_id.Generator.next client_order_id_gen)
   ()
   : Order.Request.t
   =
@@ -41,6 +47,7 @@ let make_request
   ; price = Price.of_int_cents price_cents
   ; size = Size.of_int size
   ; time_in_force
+  ; client_order_id
   }
 ;;
 
@@ -100,6 +107,7 @@ let sample_events : Exchange_event.t list =
     ; price = Price.of_int_cents 15000
     ; size = Size.of_int 100
     ; time_in_force = Day
+    ; client_order_id = Client_order_id.of_string "1"
     }
   in
   [ Order_accept
@@ -114,6 +122,8 @@ let sample_events : Exchange_event.t list =
       ; aggressor_side = Buy
       ; resting_order_id = Order_id.For_testing.of_int 1
       ; resting_participant = bob
+      ; aggressor_client_order_id = Client_order_id.of_string "2"
+      ; resting_client_order_id = Client_order_id.of_string "1"
       }
   ; Order_cancel
       { order_id = Order_id.For_testing.of_int 1
@@ -121,6 +131,7 @@ let sample_events : Exchange_event.t list =
       ; symbol = aapl
       ; remaining_size = Size.of_int 50
       ; reason = Ioc_remainder
+      ; client_order_id = Client_order_id.of_string "1"
       }
   ; Order_reject { request = order_request; reason = "unknown symbol" }
   ; Best_bid_offer_update

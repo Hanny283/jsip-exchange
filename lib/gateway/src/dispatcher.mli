@@ -22,12 +22,15 @@ type t
 (** Create a dispatcher.
 
     Events whose audience is a single participant (order-lifecycle responses
-    and [Fill] events) are currently handed to a stub [push_to_session] that
-    prints them on stdout, prefixed with the target participant. Wiring this
-    up to real [Session] outbound pipes is a week-2 exercise. *)
+    and [Fill] events) are written to that participant's [Session] outbound
+    pipe, which the client drains via [session_feed_rpc]. Register and
+    unregister sessions with [set_up_session] / [clean_up_session]. *)
 val create : unit -> t
 
-val state_table : t -> Participant_state.t Participant.Table.t
+(** The session currently registered for [participant], if any. Used by the
+    login handler to detect a name that's already in use and to recover the
+    [Session.t] that [set_up_session] just created. *)
+val find_session : t -> Participant.t -> Session.t option
 
 (** Subscribe to public market data for one or more [symbols]. The same pipe
     receives events for every requested symbol; the dispatcher avoids
@@ -48,8 +51,8 @@ val subscribe_audit : t -> Exchange_event.t Pipe.Reader.t
     - Every event is pushed to every audit subscriber.
     - [Best_bid_offer_update] and [Trade_report] are pushed to the
       market-data subscribers that asked for the event's symbol.
-    - [Order_accept], [Order_cancel], and [Order_reject] are pushed to the
-      session of the order's owning participant (if logged in).
+    - [Order_accept], [Order_cancel], [Order_reject], and [Cancel_reject] are
+      pushed to the session of the order's owning participant (if logged in).
     - [Fill] is pushed to both the aggressor's and the resting party's
       session (if either is logged in).
 

@@ -67,7 +67,7 @@ val snapshot : t -> Book.t
     expose a version of [remove] that returns the removed order. *)
 
 module For_testing : sig
-  val remove : t -> Order_id.t -> unit
+  val remove : t -> Order_id.t -> Order.t option
 end
 
 val set_identifiers : t -> Order.t Order_id.Map.t -> unit

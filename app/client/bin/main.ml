@@ -21,15 +21,17 @@ let run_client ~host ~port ~participant_name =
     [%string
       {|
 Connected to exchange at %{host}:%{port#Int} as %{participant#Participant}
-Commands: BUY|SELL <symbol> <size> <price> %{Time_in_force.all_str#String}
+Commands: BUY|SELL <client_id> <symbol> <size> <price> %{Time_in_force.all_str#String}
+          CANCEL <client_id>
           BOOK <symbol>
           SUBSCRIBE <symbol>  (stream market data)
 
 Order acknowledgements, fills, and cancellations are temporarily printed
 by the server process; the SUBSCRIBE command attaches you to a per-symbol
 market-data feed.|}];
-  let%bind _ =
+  let%bind (_ : Participant.t) =
     Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc conn participant_name
+    >>| ok_exn
   in
   let%bind session_feed, _ =
     Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc conn ()
@@ -100,6 +102,14 @@ Continue entering commands as normal.|}];
                  Rpc_protocol.submit_order_rpc
                  conn
                  request
+             in
+             loop ()
+           | Cancel client_order_id ->
+             let%bind.Deferred.Or_error () =
+               Rpc.Rpc.dispatch_exn
+                 Rpc_protocol.cancel_order_rpc
+                 conn
+                 client_order_id
              in
              loop ()))
   in

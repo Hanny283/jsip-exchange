@@ -88,30 +88,27 @@ let parse_buy_or_sell ?default_participant parts side =
          with
          | Ok tif -> Ok (tif, rest')
          | Error _ ->
-           (* Not a time-in-force. If it's the start of an "as <name>"
-              clause, fall through to the default Day and leave the clause
-              for the participant parser; otherwise it's a genuine error. *)
-           (match tif_str with
-            | "as" | "AS" -> Ok (Day, rest)
-            | _ ->
-              Or_error.error_string
-                [%string
-                  "unknown time-in-force: %{tif_str} (expected \
-                   %{Time_in_force.all_str})"]))
+           Or_error.error_string
+             [%string
+               "unknown time-in-force: %{tif_str} (expected \
+                %{Time_in_force.all_str})"])
       | [] -> Ok (Day, [])
     in
-    let%bind participant =
+    (* Identity now comes from the login handshake, so the order text no
+       longer carries a participant; anything left after the time-in-force is
+       an error rather than an "as <name>" clause. *)
+    let%bind () =
       match rest with
-      | "as" :: name :: _ | "AS" :: name :: _ ->
-        Ok (Participant.of_string name)
-      | [] ->
-        (match default_participant with
-         | Some participant -> Ok participant
-         | None -> Ok (Participant.of_string "anonymous"))
+      | [] -> Ok ()
       | _ ->
         let trailing = String.concat ~sep:" " rest in
         Or_error.error_string
           [%string "unexpected trailing arguments: %{trailing}"]
+    in
+    let participant =
+      Option.value
+        default_participant
+        ~default:(Participant.of_string "anonymous")
     in
     Ok
       ({ symbol
@@ -128,8 +125,7 @@ let parse_buy_or_sell ?default_participant parts side =
       ("expected: BUY|SELL <client_order_id> <symbol> <size> <price> "
        ^ "["
        ^ Time_in_force.all_str
-       ^ "]"
-       ^ " [as <name>]")
+       ^ "]")
 ;;
 
 let parse ?default_participant command =

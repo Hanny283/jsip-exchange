@@ -23,6 +23,7 @@ let connect_as ~port participant =
       Rpc_protocol.login_rpc
       conn
       (Participant.to_string participant)
+    >>| ok_exn
   in
   let%bind session_feed, _metadata =
     Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc conn ()

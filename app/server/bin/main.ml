@@ -22,11 +22,17 @@ let default_symbols =
 ;;
 
 let connect_as ~where_to_connect participant =
-  (* TODO: once login_rpc exists (week 2, exercise 1), dispatch it here so
-     the server knows which participant this connection belongs to. For now
-     we just open the TCP connection. *)
-  ignore participant;
-  Rpc.Connection.client where_to_connect >>| Result.ok_exn
+  let%bind conn = Rpc.Connection.client where_to_connect >>| Result.ok_exn in
+  (* Establish identity for the connection before submitting any orders; the
+     server rejects submits from connections that haven't logged in. *)
+  let%map (_ : Participant.t) =
+    Rpc.Rpc.dispatch_exn
+      Rpc_protocol.login_rpc
+      conn
+      (Participant.to_string participant)
+    >>| ok_exn
+  in
+  conn
 ;;
 
 let seed_market_maker ~where_to_connect =

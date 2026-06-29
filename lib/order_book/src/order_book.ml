@@ -72,7 +72,7 @@ let add t order =
 let remove' t order_id =
   let order = Map.find t.identifiers order_id in
   match order with
-  | None -> ()
+  | None -> None
   | Some order ->
     let side = Order.side order in
     let price = Order.price order in
@@ -91,8 +91,11 @@ let remove' t order_id =
      | Sell ->
        (match Map.min_elt t.bids with
         | None -> ()
-        | Some (min_elt, _) -> t.best_bid <- Some min_elt))
+        | Some (min_elt, _) -> t.best_bid <- Some min_elt));
+    Some order
 ;;
+
+let remove t order_id = ignore (remove' t order_id : Order.t option)
 
 let find t order_id = Map.find t.identifiers order_id
 

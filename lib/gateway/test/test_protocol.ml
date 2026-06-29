@@ -20,6 +20,7 @@ let%expect_test "format_event: all event types" =
             ; price = Price.of_int_cents 15000
             ; size = Size.of_int 100
             ; time_in_force = Day
+            ; client_order_id = Client_order_id.of_string "1"
             }
         }
     ; Fill
@@ -32,6 +33,8 @@ let%expect_test "format_event: all event types" =
         ; aggressor_side = Buy
         ; resting_order_id = Order_id.of_string "1"
         ; resting_participant = Participant.of_string "Bob"
+        ; aggressor_client_order_id = Client_order_id.of_string "2"
+        ; resting_client_order_id = Client_order_id.of_string "1"
         }
     ; Order_cancel
         { order_id = Order_id.of_string "3"
@@ -39,6 +42,7 @@ let%expect_test "format_event: all event types" =
         ; symbol = Symbol.of_string "TSLA"
         ; remaining_size = Size.of_int 50
         ; reason = Ioc_remainder
+        ; client_order_id = Client_order_id.of_string "3"
         }
     ; Order_reject
         { request =
@@ -48,6 +52,7 @@ let%expect_test "format_event: all event types" =
             ; price = Price.of_int_cents 28000
             ; size = Size.of_int 10
             ; time_in_force = Day
+            ; client_order_id = Client_order_id.of_string "4"
             }
         ; reason = "unknown symbol"
         }
@@ -99,7 +104,11 @@ let%expect_test "round-trip: parse a command, submit, format result" =
     (Harness.sell ~price_cents:15000 ~participant:Harness.bob ());
   (* Parse a buy command from text and submit it *)
   let request =
-    match Exchange_command.parse "BUY AAPL 100 150.00 as Alice" with
+    match
+      Exchange_command.parse
+        ~default_participant:Harness.alice
+        "BUY 1 AAPL 100 150.00"
+    with
     | Ok (Exchange_command.Submit request) -> request
     | Ok _ -> failwith "expected a Submit command"
     | Error err -> Error.raise err
