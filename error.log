@@ -252,3 +252,1587 @@ removed the `as <name>` text clause.
 * dune promote: rpc-shape digests + FILL/CANCELLED expect bodies + e2e outputs.
 * Exercise 1 behavioral tests (submit/cancel, dup, cancel-filled, cancel-missing,
   BBO-after-cancel, resting-fill-on-feed, login-required, dup-login).
+basename: missing operand
+Try 'basename --help' for more information.
+File "app/market_maker/src/market_maker.ml", line 1:
+Error: The implementation "app/market_maker/src/market_maker.ml"
+       does not match the interface "app/market_maker/src/.jsip_market_maker.objs/byte/jsip_market_maker__Market_maker.cmi":
+        ... In module "Config":
+       Type declarations do not match:
+         type t =
+           Config.t = {
+           participant : Jsip_types.Participant.t;
+           symbol : Jsip_types.Symbol.t;
+           fair_value_cents : int;
+           half_spread_cents : int;
+           size_per_level : int;
+           num_levels : int;
+           mutable inventory_skew_cents_per_share : int;
+         }
+       is not included in
+         type t = {
+           participant : Jsip_types.Participant.t;
+           symbol : Jsip_types.Symbol.t;
+           fair_value_cents : int;
+           half_spread_cents : int;
+           size_per_level : int;
+           num_levels : int;
+           inventory_skew_cents_per_share : int;
+         }
+       Fields do not match:
+         "mutable inventory_skew_cents_per_share : int;"
+       is not the same as:
+         "inventory_skew_cents_per_share : int;"
+       The first is mutable and the second is not.
+       File "app/market_maker/src/market_maker.mli", lines 17-31, characters 2-22:
+         Expected declaration
+       File "app/market_maker/src/market_maker.ml", lines 7-16, characters 2-22:
+         Actual declaration
+File "lib/bot_runtime/test/test_bot_runtime.ml", line 1, characters 0-0:
+------ lib/bot_runtime/test/test_bot_runtime.ml
+++++++ lib/bot_runtime/test/test_bot_runtime.ml.corrected
+File "lib/bot_runtime/test/test_bot_runtime.ml", line 124, characters 0-1:
+ |  (* The runtime does not filter — the gateway's Dispatcher routes events to
+ |     the right session pipe, so whatever the runtime receives is what the
+ |     bot's [on_event] sees. *)
+ |  let bot, observed = make_recording_bot ~participant:alice in
+ |  let%bind () = Bot_runtime.feed_event bot bbo_event in
+ |  let%bind () = Bot_runtime.feed_event bot fill_event in
+ |  let%bind () = Bot_runtime.feed_event bot accepted_event in
+ |  print_observed observed;
+ |  [%expect
+ |    {|
+ |    ((Best_bid_offer_update (symbol AAPL)
+ |      (bbo
+ |       ((bid (((price 14990) (size 100)))) (ask (((price 15010) (size 200)))))))
+ |     (Fill
+ |      ((fill_id 1) (symbol AAPL) (price 15000) (size 50) (aggressor_order_id 1)
+ |       (aggressor_participant Alice) (aggressor_side Buy) (resting_order_id 2)
+-|       (resting_participant Bob)))
++|       (resting_participant Bob) (aggressor_client_order_id 2)
++|       (resting_client_order_id 1)))
+ |     (Order_accept (order_id 1)
+ |      (request
+ |       ((symbol AAPL) (participant Alice) (side Buy) (price 15000) (size 10)
+-|        (time_in_force Day)))))
++|        (time_in_force Day) (client_order_id 3)))))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |let%expect_test "fundamental price is read from the oracle" =
+ |  let bot, _observed = make_recording_bot ~participant:alice in
+ |  let ctx = Bot_runtime.For_testing.context_of bot in
+ |  print_s [%sexp (Bot_runtime.Context.fundamental ctx aapl : Price.t)];
+ |  [%expect {| 15000 |}];
+ |  return ()
+ |;;
+File "lib/gateway/test/test_rpc_shapes.ml", line 1, characters 0-0:
+------ lib/gateway/test/test_rpc_shapes.ml
+++++++ lib/gateway/test/test_rpc_shapes.ml.corrected
+File "lib/gateway/test/test_rpc_shapes.ml", line 32, characters 0-1:
+ |   only talk to each other over an RPC if they agree on its name, version,
+ |   and these digests, so these tests are the precise statement of "what's on
+ |   the wire."
+ |
+ |   Keep them in sync as you build out the protocol: when you change or extend
+ |   an RPC, update its test; when you add an RPC, add a test for it (copy one
+ |   of the blocks below). If a digest changes, read the diff, convince
+ |   yourself the change was intended, then accept it with [dune promote]. *)
+ |
+ |let%expect_test "submit-order RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Rpc.shapes Rpc_protocol.submit_order_rpc
+ |       : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+-|    (Rpc (query 3e66c214b98aaf83fe68446b8c87512a)
++|    (Rpc (query accb8b9abcef75a3f4e6c35b0cb78f90)
+ |     (response 27f76252e5181aab209cd62aa6e42268))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |let%expect_test "book-query RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Rpc.shapes Rpc_protocol.book_query_rpc
+ |       : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+ |    (Rpc (query d9a8da25d5656b016fb4dbdc2e4197fb)
+ |     (response 9bf9d93dd466a19cac18ecff7cd287af))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |let%expect_test "login RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Rpc.shapes Rpc_protocol.login_rpc : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+ |    (Rpc (query d9a8da25d5656b016fb4dbdc2e4197fb)
+-|     (response d9a8da25d5656b016fb4dbdc2e4197fb))
++|     (response a77b3b6e3753246ce7ec1f3467c939eb))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |let%expect_test "market-data RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Pipe_rpc.shapes Rpc_protocol.market_data_rpc
+ |       : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+ |    (Streaming_rpc (query 296be80010ace497614f92952e5510c4)
+ |     (initial_response 86ba5df747eec837f0b391dd49f33f9e)
+-|     (update_response 433bb29b66b02afe94a1cd264b00ab2b)
++|     (update_response d5c1ef41bdf6fc75187f48c33fe1a828)
+ |     (error 52966f4a49a77bfdff668e9cc61511b3))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |let%expect_test "audit-log RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Pipe_rpc.shapes Rpc_protocol.audit_log_rpc
+ |       : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+ |    (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
+ |     (initial_response 86ba5df747eec837f0b391dd49f33f9e)
+-|     (update_response 433bb29b66b02afe94a1cd264b00ab2b)
++|     (update_response d5c1ef41bdf6fc75187f48c33fe1a828)
+ |     (error 52966f4a49a77bfdff668e9cc61511b3))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |let%expect_test "session-feed RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Pipe_rpc.shapes Rpc_protocol.session_feed_rpc
+ |       : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+ |    (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
+ |     (initial_response 86ba5df747eec837f0b391dd49f33f9e)
+-|     (update_response 433bb29b66b02afe94a1cd264b00ab2b)
++|     (update_response d5c1ef41bdf6fc75187f48c33fe1a828)
+ |     (error 52966f4a49a77bfdff668e9cc61511b3))
+ |    |}];
+ |  return ()
+ |;;
+ |
+ |(* [cancel_order_rpc] is a regular [Rpc.Rpc.t], not a [Pipe_rpc] — it has the
+ |   same one-shot enqueue-and-return shape as [submit_order_rpc], so its
+ |   response digest matches submit-order's [unit Or_error.t]. The query is the
+ |   [Client_order_id.t] the client wants to cancel. *)
+ |let%expect_test "cancel-order RPC" =
+ |  print_s
+ |    [%sexp
+ |      (Rpc.Rpc.shapes Rpc_protocol.cancel_order_rpc
+ |       : Async_rpc_kernel.Rpc_shapes.t)];
+ |  [%expect
+ |    {|
+File "lib/gateway/test/test_protocol.ml", line 1, characters 0-0:
+------ lib/gateway/test/test_protocol.ml
+++++++ lib/gateway/test/test_protocol.ml.corrected
+File "lib/gateway/test/test_protocol.ml", line 87, characters 0-1:
+ |                  }
+ |            }
+ |        }
+ |    ; Best_bid_offer_update
+ |        { symbol = Symbol.of_string "AAPL"; bbo = Bbo.empty }
+ |    ; Trade_report
+ |        { symbol = Symbol.of_string "AAPL"
+ |        ; price = Price.of_int_cents 15000
+ |        ; size = Size.of_int 100
+ |        }
+ |    ]
+ |  in
+ |  List.iter events ~f:(fun e -> print_endline (Protocol.format_event e));
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=3 TSLA remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=3 id=3 TSLA remaining=50 reason=IOC_REMAINDER
+ |    REJECTED GOOG SELL 10@$280.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x200 ask=$150.10 x100
+ |    BBO AAPL bid=- ask=-
+ |    TRADE AAPL $150.00 x100
+ |    |}]
+ |;;
+ |
+ |(* --- Round-trip: parse then format --- *)
+ |
+ |let%expect_test "round-trip: parse a command, submit, format result" =
+ |  let open Jsip_test_harness in
+ |  let t = Harness.create () in
+ |  (* Place a resting sell *)
+ |  Harness.submit_
+ |    t
+ |    (Harness.sell ~price_cents:15000 ~participant:Harness.bob ());
+ |  (* Parse a buy command from text and submit it *)
+ |  let request =
+ |    match
+ |      Exchange_command.parse
+ |        ~default_participant:Harness.alice
+ |        "BUY 1 AAPL 100 150.00"
+ |    with
+ |    | Ok (Exchange_command.Submit request) -> request
+ |    | Ok _ -> failwith "expected a Submit command"
+ |    | Error err -> Error.raise err
+ |  in
+ |  let events = Matching_engine.submit (Harness.engine t) request in
+ |  print_endline (Protocol.format_events events);
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+-|    BBO AAPL bid=- ask=$150.00 x100
+ |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    TRADE AAPL $150.00 x100
+-|    BBO AAPL bid=- ask=-
+ |    |}]
+ |;;
+File "lib/gateway/test/test_end_to_end.ml", line 1, characters 0-0:
+------ lib/gateway/test/test_end_to_end.ml
+++++++ lib/gateway/test/test_end_to_end.ml.corrected
+File "lib/gateway/test/test_end_to_end.ml", line 29, characters 0-1:
+ |open E2e_helpers
+ |
+ |(* ---------------------------------------------------------------- *)
+ |(* Multiple client tests *)
+ |(* ---------------------------------------------------------------- *)
+ |
+ |let%expect_test "e2e: two clients trade with each other" =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind alice = connect_as ~port Harness.alice in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    (* Bob places a sell *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+-|    [%expect {| [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
++|    [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
+ |    (* Alice places a buy — should cross *)
+ |    let%bind () = rpc_submit alice (Harness.buy ~price_cents:15000 ()) in
+ |    [%expect
+-|      {|
+-|      [for Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+-|      [for Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|      [for Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|      |}];
++|      {| [Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY |}];
+ |    return ())
+ |;;
+ |
+ |let%expect_test "e2e: three clients, sequential orders, shared book" =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind alice = connect_as ~port Harness.alice in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    let%bind charlie = connect_as ~port Harness.charlie in
+ |    (* Bob posts a sell *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell
+ |           ~price_cents:15000
+ |           ~size:50
+ |           ~participant:Harness.bob
+ |           ())
+ |    in
+-|    [%expect {| [for Bob] ACCEPTED id=1 AAPL SELL 50@$150.00 DAY |}];
++|    [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 50@$150.00 DAY |}];
+ |    (* Charlie posts a sell at a higher price *)
+ |    let%bind () =
+ |      rpc_submit
+ |        charlie
+ |        (Harness.sell
+ |           ~price_cents:15010
+ |           ~size:50
+ |           ~participant:Harness.charlie
+ |           ())
+ |    in
+-|    [%expect {| [for Charlie] ACCEPTED id=2 AAPL SELL 50@$150.10 DAY |}];
++|    [%expect {| [Charlie] ACCEPTED id=2 AAPL SELL 50@$150.10 DAY |}];
+ |    (* Alice buys 80 — should sweep through both *)
+ |    let%bind () =
+ |      rpc_submit alice (Harness.buy ~price_cents:15010 ~size:80 ())
+ |    in
+ |    [%expect
+-|      {|
+-|      [for Alice] ACCEPTED id=3 AAPL BUY 80@$150.10 DAY
+-|      [for Alice] FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=1(Bob)
+-|      [for Bob] FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=1(Bob)
+-|      [for Alice] FILL fill_id=2 AAPL $150.10 x30 aggressor=3(Alice) BUY resting=2(Charlie)
+-|      [for Charlie] FILL fill_id=2 AAPL $150.10 x30 aggressor=3(Alice) BUY resting=2(Charlie)
+-|      |}];
++|      {| [Alice] ACCEPTED id=3 AAPL BUY 80@$150.10 DAY |}];
+ |    (* Verify book state *)
+ |    let%bind book = rpc_book alice Harness.aapl in
+ |    print_endline (Option.value_exn book |> Book.to_string);
+ |    [%expect
+ |      {|
+ |      === AAPL ===
+-|        BIDS: (empty)
+-|        ASKS:
+-|          $150.10 x20
+-|        BBO: - / $150.10 x20
++|        BIDS:
++|          $150.10 x80
++|        ASKS:
++|          $150.00 x50
++|          $150.10 x50
++|        BBO: - / -
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |(* ---------------------------------------------------------------- *)
+ |(* Market data subscription tests *)
+ |(* ---------------------------------------------------------------- *)
+ |
+ |let%expect_test "e2e: market data subscriber receives trade and BBO updates" =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind sub = connect_as ~port (Participant.of_string "Sub") in
+ |    let%bind alice = connect_as ~port Harness.alice in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    let%bind result =
+ |      Rpc.Pipe_rpc.dispatch
+ |        Rpc_protocol.market_data_rpc
+File "lib/gateway/test/test_end_to_end.ml", line 125, characters 0-1:
+ |    let reader =
+ |      match result with
+ |      | Ok (Ok (reader, _id)) -> reader
+ |      | _ -> failwith "subscribe failed"
+ |    in
+ |    don't_wait_for
+ |      (Pipe.iter_without_pushback reader ~f:(fun event ->
+ |         let e = Protocol.format_event event in
+ |         print_endline [%string "[MD Subscriber] %{e}"]));
+ |    (* Post a sell *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+ |    [%expect
+-|      {|
+-|      [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+-|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100
+-|      |}];
++|      {| [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
+ |    (* Cross it with a buy *)
+ |    let%bind () = rpc_submit alice (Harness.buy ~price_cents:15000 ()) in
+ |    [%expect
+-|      {|
+-|      [for Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+-|      [for Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|      [for Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|      [MD Subscriber] TRADE AAPL $150.00 x100
+-|      [MD Subscriber] BBO AAPL bid=- ask=-
+-|      |}];
++|      {| [Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY |}];
+ |    return ())
+ |;;
+ |
+ |let%expect_test "e2e: subscriber only sees events for subscribed symbol" =
+ |  with_server ~symbols:[ Harness.aapl; Harness.tsla ] (fun ~server:_ ~port ->
+ |    let%bind sub = connect_as ~port (Participant.of_string "Sub") in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    let%bind result =
+ |      Rpc.Pipe_rpc.dispatch
+ |        Rpc_protocol.market_data_rpc
+ |        (connection sub)
+ |        [ Harness.aapl ]
+ |    in
+ |    let reader =
+ |      match result with
+ |      | Ok (Ok (reader, _id)) -> reader
+ |      | _ -> failwith "subscribe failed"
+ |    in
+ |    don't_wait_for
+ |      (Pipe.iter_without_pushback reader ~f:(fun event ->
+ |         let e = Protocol.format_event event in
+ |         print_endline [%string "[MD Subscriber] %{e}"]));
+ |    (* Post on TSLA — subscriber should NOT see this *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell
+ |           ~price_cents:20000
+ |           ~symbol:Harness.tsla
+ |           ~participant:Harness.bob
+ |           ())
+ |    in
+-|    [%expect {| [for Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
++|    [%expect {| [Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
+ |    (* Post on AAPL — subscriber SHOULD see this *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+ |    [%expect
+-|      {|
+-|      [for Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY
+-|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100
+-|      |}];
++|      {| [Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY |}];
+ |    return ())
+ |;;
+ |
+ |(* ---------------------------------------------------------------- *)
+ |(* Concurrent submission test *)
+ |(* ---------------------------------------------------------------- *)
+ |
+ |let%expect_test "e2e: many clients submit orders concurrently" =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind seed = connect_as ~port Harness.bob in
+ |    let%bind () =
+ |      Deferred.List.iter
+ |        (List.init 10 ~f:Fn.id)
+ |        ~how:`Sequential
+ |        ~f:(fun i ->
+ |          rpc_submit
+File "lib/gateway/test/test_end_to_end.ml", line 224, characters 0-1:
+ |        let participant = Participant.of_string [%string "Trader%{i#Int}"] in
+ |        let%bind client = connect_as ~port participant in
+ |        rpc_submit client (Harness.buy ~price_cents:15010 ~participant ())
+ |        |> Deferred.ignore_m)
+ |    in
+ |    (* The dispatcher's placeholder [for <Participant>] prints land on stdout
+ |       in an order that depends on which parallel buy was processed first.
+ |       Swallow the trace and assert on the deterministic remaining book state
+ |       instead: 10 sells went in, the 5 buys at $150.10 each hit the
+ |       lowest-priced sell, so 5 sells should remain. *)
+ |    let (_ : string) = [%expect.output] in
+ |    let%bind book = rpc_book seed Harness.aapl in
+ |    let book = Option.value_exn book in
+ |    let remaining_orders = List.length book.bids + List.length book.asks in
+ |    [%test_result: int] remaining_orders ~expect:5;
+ |    return ())
++|[@@expect.uncaught_exn {|
++|  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
++|     This is strongly discouraged as backtraces are fragile.
++|     Please change this test to not include a backtrace. *)
++|  (monitor.ml.Error
++|    (runtime-lib/runtime.ml.E "got unexpected result"
++|      ((expected 5) (got 15) (Loc lib/gateway/test/test_end_to_end.ml:222:19)))
++|    ("Raised at Ppx_assert_lib__Runtime.test_result__stack in file \"runtime-lib/runtime.ml\", line 131, characters 27-83"
++|      "Called from Jsip_gateway_test__Test_end_to_end.(fun) in file \"lib/gateway/test/test_end_to_end.ml\", line 222, characters 19-22"
++|      "Caught by monitor Monitor.protect at file \"lib/test_harness/src/e2e_helpers.ml\", line 9, characters 2-2"))
++|  Raised at Base__Result.ok_exn in file "src/result.ml" (inlined), line 135, characters 17-26
++|  Called from Async_unix__Thread_safe.block_on_async_exn in file "src/thread_safe.ml", line 161, characters 35-75
++|  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 359, characters 10-25
++|  |}]
+ |;;
+ |
+ |(* ---------------------------------------------------------------- *)
+ |(* Audit log subscription tests *)
+ |(* ---------------------------------------------------------------- *)
+ |
+ |let%expect_test "e2e: audit log subscriber sees full unfiltered stream \
+ |                 across symbols"
+ |  =
+ |  with_server ~symbols:[ Harness.aapl; Harness.tsla ] (fun ~server:_ ~port ->
+ |    let%bind sub = connect_as ~port (Participant.of_string "Auditor") in
+ |    let%bind alice = connect_as ~port Harness.alice in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    let%bind result =
+ |      Rpc.Pipe_rpc.dispatch Rpc_protocol.audit_log_rpc (connection sub) ()
+ |    in
+File "lib/gateway/test/test_end_to_end.ml", line 257, characters 0-1:
+ |      match result with
+ |      | Ok (Ok (reader, _id)) -> reader
+ |      | _ -> failwith "subscribe failed"
+ |    in
+ |    don't_wait_for
+ |      (Pipe.iter_without_pushback reader ~f:(fun event ->
+ |         let e = Protocol.format_event event in
+ |         print_endline [%string "[AUDIT] %{e}"]));
+ |    (* Post a sell on AAPL — audit subscriber should see ACCEPTED and BBO. *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+ |    [%expect
+ |      {|
+-|      [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |      [AUDIT] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+-|      [AUDIT] BBO AAPL bid=- ask=$150.00 x100
++|      [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |      |}];
+ |    (* Post a sell on TSLA — audit subscriber should see this too
+ |       (multi-symbol). *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell
+ |           ~price_cents:20000
+ |           ~symbol:Harness.tsla
+ |           ~participant:Harness.bob
+ |           ())
+ |    in
+ |    [%expect
+ |      {|
+-|      [for Bob] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+ |      [AUDIT] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+-|      [AUDIT] BBO TSLA bid=- ask=$200.00 x100
++|      [Bob] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+ |      |}];
+ |    (* Cross the AAPL sell — the audit log should see ACCEPTED + FILL + BBO. *)
+ |    let%bind () = rpc_submit alice (Harness.buy ~price_cents:15000 ()) in
+ |    [%expect
+ |      {|
+-|      [for Alice] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+-|      [for Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+-|      [for Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+-|      [AUDIT] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+-|      [AUDIT] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+-|      [AUDIT] TRADE AAPL $150.00 x100
+-|      [AUDIT] BBO AAPL bid=- ask=-
++|      [AUDIT] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
++|      [Alice] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |let%expect_test "dispatcher: closing a subscriber's reader removes the \
+ |                 writer"
+ |  =
+ |  let dispatcher = Dispatcher.create () in
+ |  print_s
+ |    [%message
+ |      "initial"
+ |        ~count:
+ |          (Dispatcher.For_testing.audit_subscriber_count dispatcher : int)];
+ |  [%expect {| (initial (count 0)) |}];
+ |  let reader_a = Dispatcher.subscribe_audit dispatcher in
+ |  let reader_b = Dispatcher.subscribe_audit dispatcher in
+File "lib/order_book/test/test_order_book.ml", line 1, characters 0-0:
+------ lib/order_book/test/test_order_book.ml
+++++++ lib/order_book/test/test_order_book.ml.corrected
+File "lib/order_book/test/test_order_book.ml", line 142, characters 0-1:
+ |
+ |let%expect_test "find_match returns None for empty book" =
+ |  let book = Order_book.create Harness.aapl in
+ |  let order = make_order ~side:Buy ~price_cents:15000 ~order_id:1 () in
+ |  [%test_result: _ option] (Order_book.find_match book order) ~expect:None
+ |;;
+ |
+ |let%expect_test "find_match finds a tradable resting order" =
+ |  let book = Order_book.create Harness.aapl in
+ |  let resting = make_order ~side:Sell ~price_cents:15000 ~order_id:1 () in
+ |  Order_book.add book resting;
+ |  let incoming = make_order ~side:Buy ~price_cents:15000 ~order_id:2 () in
+ |  let matched = Order_book.find_match book incoming in
+ |  [%test_result: Order_id.t]
+ |    (Order.order_id (Option.value_exn matched))
+ |    ~expect:(Order.order_id resting)
++|[@@expect.uncaught_exn {|
++|  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
++|     This is strongly discouraged as backtraces are fragile.
++|     Please change this test to not include a backtrace. *)
++|  ("Option.value_exn None" lib/order_book/test/test_order_book.ml:140:21)
++|  Raised at Base__Error.raise in file "src/error.ml", line 17, characters 38-66
++|  Called from Base__Error.raise in file "src/error.ml" (inlined), line 25, characters 47-66
++|  Called from Base__Option.value_exn__bits64 in file "src/option.ml", line 87, characters 13-30
++|  Called from Jsip_order_book_test__Test_order_book.(fun) in file "lib/order_book/test/test_order_book.ml", line 140, characters 20-46
++|  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 359, characters 10-25
++|  |}]
+ |;;
+ |
+ |let%expect_test "find_match returns None when prices don't cross" =
+ |  let book = Order_book.create Harness.aapl in
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:15100 ~order_id:1 ());
+ |  let incoming = make_order ~side:Buy ~price_cents:15000 ~order_id:2 () in
+ |  [%test_result: _ option] (Order_book.find_match book incoming) ~expect:None
+ |;;
+ |
+ |let%expect_test "find_match: buy matches against asks, not bids" =
+ |  let book = Order_book.create Harness.aapl in
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Buy ~price_cents:15000 ~order_id:1 ());
+ |  let ask = make_order ~side:Sell ~price_cents:15000 ~order_id:2 () in
+ |  Order_book.add book ask;
+ |  let incoming = make_order ~side:Buy ~price_cents:15000 ~order_id:3 () in
+ |  let matched = Order_book.find_match book incoming in
+ |  [%test_result: Order_id.t]
+ |    (Order.order_id (Option.value_exn matched))
+ |    ~expect:(Order.order_id ask)
++|[@@expect.uncaught_exn {|
++|  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
++|     This is strongly discouraged as backtraces are fragile.
++|     Please change this test to not include a backtrace. *)
++|  ("Option.value_exn None" lib/order_book/test/test_order_book.ml:163:21)
++|  Raised at Base__Error.raise in file "src/error.ml", line 17, characters 38-66
++|  Called from Base__Error.raise in file "src/error.ml" (inlined), line 25, characters 47-66
++|  Called from Base__Option.value_exn__bits64 in file "src/option.ml", line 87, characters 13-30
++|  Called from Jsip_order_book_test__Test_order_book.(fun) in file "lib/order_book/test/test_order_book.ml", line 163, characters 20-46
++|  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 359, characters 10-25
++|  |}]
+ |;;
+ |
+ |(* --- best_bid_offer --- *)
+ |
+ |let%expect_test "best_bid_offer: highest bid, lowest ask" =
+ |  let book = Order_book.create Harness.aapl in
+ |  let high_bid = 15050 in
+ |  let low_ask = 15100 in
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Buy ~price_cents:(high_bid - 50) ~order_id:1 ());
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Buy ~price_cents:high_bid ~order_id:2 ());
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:(low_ask + 100) ~order_id:3 ());
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:low_ask ~order_id:4 ());
+ |  let bbo = Order_book.best_bid_offer book in
+ |  [%test_result: Price.t option]
+ |    (Bbo.price bbo Buy)
+ |    ~expect:(Some (Price.of_int_cents high_bid));
+ |  [%test_result: Price.t option]
+ |    (Bbo.price bbo Sell)
+ |    ~expect:(Some (Price.of_int_cents low_ask))
++|[@@expect.uncaught_exn {|
++|  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
++|     This is strongly discouraged as backtraces are fragile.
++|     Please change this test to not include a backtrace. *)
++|  (runtime-lib/runtime.ml.E "got unexpected result"
++|    ((expected (15050)) (got ())
++|      (Loc lib/order_book/test/test_order_book.ml:186:17)))
++|  Raised at Ppx_assert_lib__Runtime.test_result__stack in file "runtime-lib/runtime.ml", line 131, characters 27-83
++|  Called from Jsip_order_book_test__Test_order_book.(fun) in file "lib/order_book/test/test_order_book.ml", line 186, characters 17-31
++|  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 359, characters 10-25
++|  |}]
+ |;;
+ |
+ |let%expect_test "best_bid_offer: empty book" =
+ |  let book = Order_book.create Harness.aapl in
+ |  [%test_result: Bbo.t] (Order_book.best_bid_offer book) ~expect:Bbo.empty
+ |;;
+ |
+ |let%expect_test "best_bid_offer: aggregates size at best level" =
+ |  let book = Order_book.create Harness.aapl in
+ |  let size1 = 50 in
+ |  let size2 = 75 in
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:15000 ~order_id:1 ~size:size1 ());
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:15000 ~order_id:2 ~size:size2 ());
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:15100 ~order_id:3 ~size:200 ());
+ |  let bbo = Order_book.best_bid_offer book in
+ |  [%test_result: Level.t option]
+ |    bbo.ask
+ |    ~expect:
+ |      (Some
+ |         { price = Price.of_int_cents 15000
+ |         ; size = Size.of_int (size1 + size2)
+ |         })
++|[@@expect.uncaught_exn {|
++|  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
++|     This is strongly discouraged as backtraces are fragile.
++|     Please change this test to not include a backtrace. *)
++|  (runtime-lib/runtime.ml.E "got unexpected result"
++|    ((expected (((price 15000) (size 125)))) (got ())
++|      (Loc lib/order_book/test/test_order_book.ml:213:17)))
++|  Raised at Ppx_assert_lib__Runtime.test_result__stack in file "runtime-lib/runtime.ml", line 131, characters 27-83
++|  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 359, characters 10-25
++|  |}]
+ |;;
+ |
+ |let%expect_test "best_bid_offer: tracks changes as orders are added" =
+ |  let book = Order_book.create Harness.aapl in
+ |  let buy_price = 14990 in
+ |  let sell_price = 15010 in
+ |  let print_bbo () =
+ |    let bbo = Order_book.best_bid_offer book |> Bbo.to_string in
+ |    print_endline [%string "BBO: %{bbo}"]
+ |  in
+ |  print_bbo ();
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Buy ~price_cents:buy_price ~order_id:1 ());
+ |  print_bbo ();
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Sell ~price_cents:sell_price ~order_id:2 ());
+ |  print_bbo ();
+ |  [%expect
+ |    {|
+ |    BBO: - / -
+-|    BBO: $149.90 x100 / -
+-|    BBO: $149.90 x100 / $150.10 x100
++|    BBO: - / -
++|    BBO: - / -
+ |    |}]
+ |;;
+ |
+ |(* --- snapshot --- *)
+ |
+ |let%expect_test "snapshot lists levels in price-time priority order" =
+ |  let book = Order_book.create Harness.aapl in
+ |  (* Add bids and asks at varying prices, deliberately out of price order. *)
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Buy ~price_cents:15000 ~order_id:1 ());
+ |  Order_book.add
+ |    book
+ |    (make_order ~side:Buy ~price_cents:14990 ~order_id:2 ());
+ |  Order_book.add
+ |    book
+File "lib/order_book/test/test_order_book.ml", line 284, characters 0-1:
+ |    book
+ |    (make_order ~side:Sell ~price_cents:15015 ~order_id:6 ());
+ |  print_endline (Order_book.snapshot book |> Book.to_string);
+ |  (* The book reports orders in price-time priority, regardless of insertion
+ |     order: bids highest-price-first, asks lowest-price-first. *)
+ |  [%expect
+ |    {|
+ |    === AAPL ===
+ |      BIDS:
+ |        $150.00 x100
+ |        $149.95 x100
+ |        $149.90 x100
+ |      ASKS:
+ |        $150.05 x100
+ |        $150.10 x100
+ |        $150.15 x100
+-|      BBO: $150.00 x100 / $150.05 x100
++|      BBO: - / -
+ |    |}]
+ |;;
+File "lib/order_book/test/test_matching_engine.ml", line 1, characters 0-0:
+------ lib/order_book/test/test_matching_engine.ml
+++++++ lib/order_book/test/test_matching_engine.ml.corrected
+File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
+ |  submit_ t (Harness.sell ~price_cents:15100 ~participant:Harness.bob ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+ |    ACCEPTED id=2 AAPL SELL 100@$151.00 DAY
+ |    |}]
+ |;;
+ |
+ |let%expect_test "exact cross at same price" =
+ |  let t = Harness.create () in
+ |  submit_ t (Harness.sell ~price_cents:15000 ~participant:Harness.bob ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+ |    |}]
+ |;;
+ |
+ |let%expect_test "buy crosses at resting price, not aggressor price" =
+ |  let t = Harness.create () in
+ |  submit_ t (Harness.sell ~price_cents:15000 ~participant:Harness.bob ());
+ |  submit_ t (Harness.buy ~price_cents:15100 ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |    ACCEPTED id=2 AAPL BUY 100@$151.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+ |    |}]
+ |;;
+ |
+ |let%expect_test "partial fill: buy is larger than resting sell" =
+ |  let t = Harness.create () in
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15000 ~size:60 ~participant:Harness.bob ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ~size:100 ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 60@$150.00 DAY
+ |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x60 aggressor=2(Alice) BUY resting=1(Bob)
+ |    |}];
+ |  (* Remainder rests on the book *)
+ |  Harness.print_book t Harness.aapl;
+ |  [%expect
+ |    {|
+ |    === AAPL ===
+ |      BIDS:
+-|        $150.00 x40
+-|      ASKS: (empty)
+-|      BBO: $150.00 x40 / -
++|        $150.00 x100
++|      ASKS:
++|        $150.00 x60
++|      BBO: - / -
+ |    |}]
+ |;;
+ |
+ |let%expect_test "aggressor sweeps multiple resting orders" =
+ |  let t = Harness.create () in
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15000 ~size:50 ~participant:Harness.bob ());
+ |  submit_
+ |    t
+ |    (Harness.sell
+ |       ~price_cents:15000
+ |       ~size:80
+ |       ~participant:Harness.charlie
+ |       ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ~size:100 ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 50@$150.00 DAY
+ |    ACCEPTED id=2 AAPL SELL 80@$150.00 DAY
+ |    ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=1(Bob)
+-|    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=2(Charlie)
+ |    |}]
+ |;;
+ |
+ |(* ================================================================ *)
+ |(* IOC (Immediate-or-Cancel) orders *)
+ |(* ================================================================ *)
+ |
+ |let%expect_test "IOC: no match means immediate cancel" =
+ |  let t = Harness.create () in
+ |  submit_ t (Harness.buy ~price_cents:15000 ~time_in_force:Ioc ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 IOC
+-|    CANCELLED id=1 AAPL remaining=100 reason=IOC_REMAINDER
++|    CANCELLED client_id=13 id=1 AAPL remaining=100 reason=IOC_REMAINDER
+ |    |}]
+ |;;
+ |
+ |let%expect_test "IOC: partial fill then cancel remainder" =
+ |  let t = Harness.create () in
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15000 ~size:40 ~participant:Harness.bob ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ~size:100 ~time_in_force:Ioc ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 40@$150.00 DAY
+ |    ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
+-|    FILL fill_id=1 AAPL $150.00 x40 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=2 AAPL remaining=60 reason=IOC_REMAINDER
++|    CANCELLED client_id=15 id=2 AAPL remaining=100 reason=IOC_REMAINDER
+ |    |}]
+ |;;
+ |
+ |let%expect_test "IOC: full fill means no cancel event" =
+ |  let t = Harness.create () in
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15000 ~size:100 ~participant:Harness.bob ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ~size:100 ~time_in_force:Ioc ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |    ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|    CANCELLED client_id=17 id=2 AAPL remaining=100 reason=IOC_REMAINDER
+ |    |}]
+ |;;
+ |
+ |let%expect_test "IOC: does not rest on book" =
+ |  let t = Harness.create () in
+ |  submit_ t (Harness.buy ~price_cents:15000 ~time_in_force:Ioc ());
+ |  Harness.print_book t Harness.aapl;
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 IOC
+-|    CANCELLED id=1 AAPL remaining=100 reason=IOC_REMAINDER
++|    CANCELLED client_id=18 id=1 AAPL remaining=100 reason=IOC_REMAINDER
+ |    === AAPL ===
+ |      BIDS: (empty)
+ |      ASKS: (empty)
+ |      BBO: - / -
+ |    |}]
+ |;;
+ |
+ |(* ================================================================ *)
+ |(* Rejections *)
+ |(* ================================================================ *)
+ |
+ |let%expect_test "rejected: unknown symbol" =
+ |  let t = Harness.create () in
+ |  submit_
+ |    t
+ |    (Harness.buy ~price_cents:15000 ~symbol:(Symbol.of_string "NOPE") ());
+File "lib/order_book/test/test_matching_engine.ml", line 209, characters 0-1:
+ |       ~price_cents:15000
+ |       ~symbol:Harness.aapl
+ |       ~participant:Harness.bob
+ |       ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ~symbol:Harness.tsla ());
+ |  (* Buy for TSLA should not match the AAPL sell *)
+ |  Harness.print_book t Harness.aapl;
+ |  Harness.print_book t Harness.tsla;
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |    ACCEPTED id=2 TSLA BUY 100@$150.00 DAY
+ |    === AAPL ===
+ |      BIDS: (empty)
+ |      ASKS:
+ |        $150.00 x100
+-|      BBO: - / $150.00 x100
++|      BBO: - / -
+ |    === TSLA ===
+ |      BIDS:
+ |        $150.00 x100
+ |      ASKS: (empty)
+-|      BBO: $150.00 x100 / -
++|      BBO: - / -
+ |    |}]
+ |;;
+ |
+ |(* ================================================================ *)
+ |(* Engine queries *)
+ |(* ================================================================ *)
+ |
+ |let%expect_test "book: returns book for known symbol, None for unknown" =
+ |  let t = Harness.create () in
+ |  let engine = Harness.engine t in
+ |  [%test_result: bool]
+ |    (Option.is_some (Matching_engine.book engine Harness.aapl))
+ |    ~expect:true;
+ |  [%test_result: _ option]
+ |    (Matching_engine.book engine (Symbol.of_string "NOPE"))
+ |    ~expect:None
+File "lib/order_book/test/test_matching_engine.ml", line 251, characters 0-1:
+ |(* ================================================================ *)
+ |
+ |let%expect_test "price priority: matches best-priced resting order" =
+ |  let t = Harness.create () in
+ |  (* Charlie sells at $10.00, then Bob at $10.05. Bob's $10.05 was added more
+ |     recently and sits at the front of the list, but price-time priority
+ |     matches the buy against Charlie's $10.00 — the best (lowest) ask. *)
+ |  submit_ t (Harness.sell ~price_cents:1000 ~participant:Harness.charlie ());
+ |  submit_ t (Harness.sell ~price_cents:1005 ~participant:Harness.bob ());
+ |  submit_ t (Harness.buy ~price_cents:1005 ());
+ |  (* The buyer pays $10.00, the best ask — not $10.05. *)
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$10.00 DAY
+ |    ACCEPTED id=2 AAPL SELL 100@$10.05 DAY
+ |    ACCEPTED id=3 AAPL BUY 100@$10.05 DAY
+-|    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice) BUY resting=1(Charlie)
+ |    |}]
+ |;;
+ |
+ |(* ================================================================ *)
+ |(* Market data events *)
+ |(* ================================================================ *)
+ |
+ |let%expect_test "BBO update emitted when order rests on book" =
+ |  let t = Harness.create () in
+ |  let events = Harness.submit_quiet t (Harness.buy ~price_cents:15000 ()) in
+ |  Harness.print_events ~show:show_bbo events;
+-|  [%expect {| BBO AAPL bid=$150.00 x100 ask=- |}];
++|  [%expect {| |}];
+ |  let events = Harness.submit_quiet t (Harness.sell ~price_cents:15100 ()) in
+ |  Harness.print_events ~show:show_bbo events;
+-|  [%expect {| BBO AAPL bid=$150.00 x100 ask=$151.00 x100 |}]
++|  [%expect {| |}]
+ |;;
+ |
+ |let%expect_test "BBO update: reflects new best after fill" =
+ |  let t = Harness.create () in
+ |  let events = Harness.submit_quiet t (Harness.sell ~price_cents:15000 ()) in
+ |  Harness.print_events ~show:show_bbo events;
+-|  [%expect {| BBO AAPL bid=- ask=$150.00 x100 |}];
++|  [%expect {| |}];
+ |  let events = Harness.submit_quiet t (Harness.buy ~price_cents:15000 ()) in
+ |  Harness.print_events ~show:show_bbo events;
+ |  (* Both sides empty after the cross *)
+-|  [%expect {| BBO AAPL bid=- ask=- |}]
++|  [%expect {| |}]
+ |;;
+ |
+ |let%expect_test "BBO update: not emitted when BBO unchanged" =
+ |  let t = Harness.create () in
+ |  (* Add a sell at $151, then another at $152. The BBO doesn't change on the
+ |     second add (best ask is still $151). *)
+ |  Harness.submit_quiet_
+ |    t
+ |    (Harness.sell ~price_cents:15100 ~participant:Harness.bob ());
+ |  let events =
+ |    Harness.submit_quiet
+ |      t
+ |      (Harness.sell ~price_cents:15200 ~participant:Harness.charlie ())
+ |  in
+ |  let bbo_count =
+ |    List.count events ~f:(function
+File "lib/order_book/test/test_matching_engine.ml", line 321, characters 0-1:
+ |  Harness.submit_quiet_
+ |    t
+ |    (Harness.sell
+ |       ~price_cents:15000
+ |       ~size:80
+ |       ~participant:Harness.charlie
+ |       ());
+ |  let events =
+ |    Harness.submit_quiet t (Harness.buy ~price_cents:15000 ~size:100 ())
+ |  in
+ |  Harness.print_events
+ |    ~show:
+ |      (Harness.Show.only (function
+ |        | Exchange_event.Trade_report _ -> true
+ |        | _ -> false))
+ |    events;
+-|  [%expect {|
+-|    TRADE AAPL $150.00 x50
+-|    TRADE AAPL $150.00 x50
+-|    |}]
++|  [%expect {| |}]
+ |;;
+ |
+ |let%expect_test "no market data events on rejection" =
+ |  let t = Harness.create () in
+ |  let events =
+ |    Harness.submit_quiet
+ |      t
+ |      (Harness.buy ~price_cents:15000 ~symbol:(Symbol.of_string "NOPE") ())
+ |  in
+ |  let md_count =
+ |    List.count events ~f:(function
+ |      | Exchange_event.Best_bid_offer_update _ | Trade_report _ -> true
+ |      | _ -> false)
+ |  in
+ |  [%test_result: int] md_count ~expect:0
+ |;;
+File "lib/order_book/test/test_matching_engine.ml", line 370, characters 0-1:
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15020 ~size:150 ~participant:Harness.bob ());
+ |  (* Charlie crosses the spread: buys at $150.10 *)
+ |  submit_
+ |    t
+ |    (Harness.buy ~price_cents:15010 ~size:50 ~participant:Harness.charlie ());
+ |  Harness.print_book t Harness.aapl;
+ |  Harness.print_bbo t Harness.aapl;
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL BUY 100@$149.90 DAY
+ |    ACCEPTED id=2 AAPL BUY 200@$149.80 DAY
+ |    ACCEPTED id=3 AAPL SELL 100@$150.10 DAY
+ |    ACCEPTED id=4 AAPL SELL 150@$150.20 DAY
+ |    ACCEPTED id=5 AAPL BUY 50@$150.10 DAY
+-|    FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie) BUY resting=3(Bob)
+ |    === AAPL ===
+ |      BIDS:
++|        $150.10 x50
+ |        $149.90 x100
+ |        $149.80 x200
+ |      ASKS:
+-|        $150.10 x50
++|        $150.10 x100
+ |        $150.20 x150
+-|      BBO: $149.90 x100 / $150.10 x50
+-|    BBO AAPL: $149.90 x100 / $150.10 x50
++|      BBO: - / -
++|    BBO AAPL: - / -
+ |    |}]
+ |;;
+ |
+ |let%expect_test "scenario: aggressive IOC sweeps entire book" =
+ |  let t = Harness.create () in
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15000 ~size:50 ~participant:Harness.bob ());
+ |  submit_
+ |    t
+ |    (Harness.sell
+ |       ~price_cents:15010
+ |       ~size:50
+ |       ~participant:Harness.charlie
+ |       ());
+ |  submit_
+ |    t
+ |    (Harness.sell ~price_cents:15020 ~size:50 ~participant:Harness.bob ());
+ |  (* IOC buy for 200 at $150.20 — sweeps all 150 shares, cancels 50 *)
+ |  submit_ t (Harness.buy ~price_cents:15020 ~size:200 ~time_in_force:Ioc ());
+ |  Harness.print_book t Harness.aapl;
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 50@$150.00 DAY
+ |    ACCEPTED id=2 AAPL SELL 50@$150.10 DAY
+ |    ACCEPTED id=3 AAPL SELL 50@$150.20 DAY
+ |    ACCEPTED id=4 AAPL BUY 200@$150.20 IOC
+-|    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice) BUY resting=1(Bob)
+-|    FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice) BUY resting=2(Charlie)
+-|    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice) BUY resting=3(Bob)
+-|    CANCELLED id=4 AAPL remaining=50 reason=IOC_REMAINDER
+-|    === AAPL ===
+-|      BIDS: (empty)
+-|      ASKS: (empty)
++|    CANCELLED client_id=43 id=4 AAPL remaining=200 reason=IOC_REMAINDER
++|    === AAPL ===
++|      BIDS: (empty)
++|      ASKS:
++|        $150.00 x50
++|        $150.10 x50
++|        $150.20 x50
+ |      BBO: - / -
+ |    |}]
+ |;;
+ |
+ |let%expect_test "scenario: order IDs are globally sequential" =
+ |  let t = Harness.create () in
+ |  submit_ t (Harness.buy ~price_cents:15000 ~symbol:Harness.aapl ());
+ |  submit_
+ |    t
+ |    (Harness.sell
+ |       ~price_cents:20000
+ |       ~symbol:Harness.tsla
+ |       ~participant:Harness.bob
+ |       ());
+ |  submit_
+ |    t
+File "lib/order_book/test/test_matching_engine.ml", line 461, characters 0-1:
+ |  (* Set up two separate crosses *)
+ |  submit_ t (Harness.sell ~price_cents:15000 ~participant:Harness.bob ());
+ |  submit_
+ |    t
+ |    (Harness.sell
+ |       ~price_cents:20000
+ |       ~symbol:Harness.tsla
+ |       ~participant:Harness.charlie
+ |       ());
+ |  submit_ t (Harness.buy ~price_cents:15000 ());
+ |  submit_ t (Harness.buy ~price_cents:20000 ~symbol:Harness.tsla ());
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |    ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+ |    ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+ |    ACCEPTED id=4 TSLA BUY 100@$200.00 DAY
+-|    FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice) BUY resting=2(Charlie)
+ |    |}]
+ |;;
+File "app/monitor/test/test_event_log.ml", line 1, characters 0-0:
+------ app/monitor/test/test_event_log.ml
+++++++ app/monitor/test/test_event_log.ml.corrected
+File "app/monitor/test/test_event_log.ml", line 42, characters 0-1:
+ |  let log = Event_log.create () in
+ |  print_endline [%string "count=%{Event_log.event_count log#Int}"];
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect {| count=0 |}]
+ |;;
+ |
+ |(* ----- adding events ----- *)
+ |
+ |let%expect_test "events appear in insertion order" =
+ |  let log = log_with_sample_events () in
+ |  print_endline [%string "count=%{Event_log.event_count log#Int}"];
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect
+ |    {|
+ |    count=6
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    |}]
+ |;;
+ |
+ |(* ----- filter: substring ----- *)
+ |
+ |let%expect_test "filter by substring keeps only matching lines" =
+ |  let log = log_with_sample_events () in
+ |  let log =
+ |    Event_log.set_filter log (Event_log.Filter.by_substring "fill")
+ |  in
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect
+-|    {| FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob) |}]
++|    {| FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1 |}]
+ |;;
+ |
+ |let%expect_test "substring filter is case-insensitive" =
+ |  let log = log_with_sample_events () in
+ |  let log = Event_log.set_filter log (Event_log.Filter.by_substring "bbo") in
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect {| BBO AAPL bid=$149.90 x100 ask=$150.10 x200 |}]
+ |;;
+ |
+ |(* ----- filter: categories ----- *)
+ |
+ |let%expect_test "filter by category groups variants" =
+ |  let log = log_with_sample_events () in
+ |  let log =
+ |    Event_log.set_filter
+ |      log
+ |      (Event_log.Filter.by_categories [ Order_lifecycle ])
+ |  in
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    |}]
+ |;;
+ |
+ |let%expect_test "market-data category covers BBO and trade reports" =
+ |  let log = log_with_sample_events () in
+ |  let log =
+ |    Event_log.set_filter log (Event_log.Filter.by_categories [ Market_data ])
+ |  in
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect
+ |    {|
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    |}]
+ |;;
+File "app/monitor/test/test_event_log.ml", line 122, characters 0-1:
+ |      (Event_log.Filter.by_categories [ Market_data ])
+ |      (Event_log.Filter.by_substring "150.00")
+ |  in
+ |  let log = Event_log.set_filter log f in
+ |  print_lines (Event_log.visible_lines log);
+ |  [%expect {| TRADE AAPL $150.00 x100 |}]
+ |;;
+ |
+ |(* ----- styled rendering ----- *)
+ |
+ |let%expect_test "each event variant renders with its assigned color" =
+ |  let log = log_with_sample_events () in
+ |  print_styled (Event_log.visible_styled_lines log);
+ |  [%expect
+ |    {|
+ |    [green] ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    [cyan] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    [yellow] CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    [cyan] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    [yellow] CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    [red] REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    [blue] BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    [magenta] TRADE AAPL $150.00 x100
+ |    |}]
+ |;;
+ |
+ |let print_bbos log =
+ |  List.iter (Event_log.current_bbos log) ~f:(fun (symbol, bbo) ->
+ |    print_endline [%string "%{symbol#Symbol}: %{bbo#Bbo}"])
+ |;;
+ |
+ |let%expect_test "current_bbos tracks latest BBO per symbol in \
+ |                 first-appearance order"
+ |  =
+ |  let aapl = Symbol.of_string "AAPL" in
+ |  let tsla = Symbol.of_string "TSLA" in
+File "app/monitor/test/test_controller.ml", line 1, characters 0-0:
+------ app/monitor/test/test_controller.ml
+++++++ app/monitor/test/test_controller.ml.corrected
+File "app/monitor/test/test_controller.ml", line 68, characters 0-1:
+ |    |}]
+ |;;
+ |
+ |(* ---------- Feeding events ---------- *)
+ |
+ |let%expect_test "feeding sample events populates the display" =
+ |  let c = feed_all (Controller.create ()) in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   6 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  (empty)
+ |    ──────────────────────────────────────────────────────────────────────
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    |}]
+ |;;
+ |
+ |(* ---------- Quit ---------- *)
+ |
+ |let exits_after_press key =
+ |  let c = Controller.create () in
+ |  let c = Controller.handle_key c key in
+ |  Controller.should_exit c
+ |;;
+ |
+File "app/monitor/test/test_controller.ml", line 123, characters 0-1:
+ |let%expect_test "pressing 1 toggles the order-lifecycle category off and \
+ |                 back on"
+ |  =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '1') in
+ |  show c;
+ |  print_endline "----- toggle 1 again -----";
+ |  let c = press c (ASCII '1') in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   3 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: (1 order-lifecycle)  [2 trade]  [3 market-data]
+ |    Substring:  (empty)
+ |    ──────────────────────────────────────────────────────────────────────
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    ----- toggle 1 again -----
+ |    JSIP Exchange Monitor   6 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  (empty)
+ |    ──────────────────────────────────────────────────────────────────────
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    |}]
+ |;;
+ |
+ |let%expect_test "pressing 2 toggles trade; 3 toggles market-data" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '2') in
+ |  let c = press c (ASCII '3') in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   3 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  (2 trade)  (3 market-data)
+ |    Substring:  (empty)
+ |    ──────────────────────────────────────────────────────────────────────
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    |}]
+ |;;
+ |
+ |let%expect_test "disabling every category hides every event" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press_chars c [ '1'; '2'; '3' ] in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   0 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: (1 order-lifecycle)  (2 trade)  (3 market-data)
+ |    Substring:  (empty)
+File "app/monitor/test/test_controller.ml", line 197, characters 0-1:
+ |
+ |(* ---------- Substring filter editing ---------- *)
+ |
+ |let%expect_test "pressing / enters editing mode with empty buffer" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '/') in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   6 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  _  (editing)
+ |    [editing substring]
+ |    ──────────────────────────────────────────────────────────────────────
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      Enter=commit  ESC=cancel  Backspace=delete  (other keys append)
+ |    |}]
+ |;;
+ |
+ |let%expect_test "typing in edit mode appends to the buffer" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '/') in
+ |  let c = press_chars c [ 'f'; 'i'; 'l'; 'l' ] in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   1 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  fill_  (editing)
+ |    [editing substring]
+ |    ──────────────────────────────────────────────────────────────────────
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      Enter=commit  ESC=cancel  Backspace=delete  (other keys append)
+ |    |}]
+ |;;
+ |
+ |let%expect_test "Enter commits the substring filter and returns to browsing" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '/') in
+ |  let c = press_chars c [ 'f'; 'i'; 'l'; 'l' ] in
+ |  let c = press c Key.Enter in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   1 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  fill
+ |    ──────────────────────────────────────────────────────────────────────
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    |}]
+ |;;
+ |
+ |let%expect_test "Escape cancels edit mode and reverts the buffer" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '/') in
+ |  let c = press_chars c [ 'b'; 'b'; 'o' ] in
+ |  let c = press c Key.Escape in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   6 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  (empty)
+ |    ──────────────────────────────────────────────────────────────────────
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    |}]
+ |;;
+ |
+ |let%expect_test "Backspace in edit mode pops the last character" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '/') in
+ |  let c = press_chars c [ 'f'; 'i'; 'z'; 'z' ] in
+ |  let c = press c Key.Backspace in
+ |  let c = press c Key.Backspace in
+ |  show c;
+ |  [%expect
+ |    {|
+ |    JSIP Exchange Monitor   1 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  fi_  (editing)
+ |    [editing substring]
+ |    ──────────────────────────────────────────────────────────────────────
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      Enter=commit  ESC=cancel  Backspace=delete  (other keys append)
+ |    |}]
+ |;;
+ |
+ |(* ---------- Reset ---------- *)
+ |
+ |let%expect_test "pressing r clears every filter back to defaults" =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '1') in
+ |  let c = press c (ASCII '/') in
+ |  let c = press_chars c [ 'f'; 'i'; 'l'; 'l' ] in
+ |  let c = press c Key.Enter in
+ |  print_endline "----- after toggling and committing 'fill' -----";
+ |  show c;
+ |  let c = press c (ASCII 'r') in
+ |  print_endline "----- after r -----";
+ |  show c;
+ |  [%expect
+ |    {|
+ |    ----- after toggling and committing 'fill' -----
+ |    JSIP Exchange Monitor   1 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: (1 order-lifecycle)  [2 trade]  [3 market-data]
+ |    Substring:  fill
+ |    ──────────────────────────────────────────────────────────────────────
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    ----- after r -----
+ |    JSIP Exchange Monitor   6 of 6 events   auto-scroll ↓
+ |    BBO:        AAPL: $149.90 x100 / $150.10 x200
+ |    Categories: [1 order-lifecycle]  [2 trade]  [3 market-data]
+ |    Substring:  (empty)
+ |    ──────────────────────────────────────────────────────────────────────
+ |    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+-|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|    CANCELLED id=1 AAPL remaining=50 reason=IOC_REMAINDER
++|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
++|    CANCELLED client_id=1 id=1 AAPL remaining=50 reason=IOC_REMAINDER
+ |    REJECTED AAPL BUY 100@$150.00 reason=unknown symbol
+ |    BBO AAPL bid=$149.90 x100 ask=$150.10 x200
+ |    TRADE AAPL $150.00 x100
+ |    ──────────────────────────────────────────────────────────────────────
+ |    Footer:      q=quit  r=reset  1-3=categories  /=substring  a=auto-scroll
+ |    |}]
+ |;;
+ |
+ |(* ---------- Counter ---------- *)
+ |
+ |let%expect_test "counter reflects visible / total even when filters are \
+ |                 active"
+ |  =
+ |  let c = feed_all (Controller.create ()) in
+ |  let c = press c (ASCII '/') in
+ |  let c = press_chars c [ 'b'; 'b'; 'o' ] in

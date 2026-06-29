@@ -34,10 +34,11 @@ end
    without the server's memory growing unboundedly. *)
 let request_queue_size_budget = 1024
 
-(* Both the submit and cancel RPCs are one-way: enqueue the command and return
-   [Ok ()] immediately. The engine's response (an [Order_accept] / [Fill] /
-   [Order_reject] for a submit, an [Order_cancel] / [Cancel_reject] for a
-   cancel) is delivered asynchronously on the participant's session feed. *)
+(* Both the submit and cancel RPCs are one-way: enqueue the command and
+   return [Ok ()] immediately. The engine's response (an [Order_accept] /
+   [Fill] / [Order_reject] for a submit, an [Order_cancel] / [Cancel_reject]
+   for a cancel) is delivered asynchronously on the participant's session
+   feed. *)
 let enqueue ~request_writer command =
   let%map () = Pipe.write_if_open request_writer command in
   Ok ()
@@ -78,14 +79,15 @@ let start ~symbols ~port () =
                  Deferred.return (Or_error.error_string "not logged in")
                | Some session ->
                  (* Identity comes from the login, not the request, so a
-                    logged-in client can't submit on behalf of someone
-                    else. *)
+                    logged-in client can't submit on behalf of someone else. *)
                  let participant = Session.participant session in
                  let (rq : Order.Request.t) = { request with participant } in
                  enqueue ~request_writer (Submit rq))
-        ; Rpc.Rpc.implement' Rpc_protocol.book_query_rpc (fun _state symbol ->
-            Matching_engine.book engine symbol
-            |> Option.map ~f:Order_book.snapshot)
+        ; Rpc.Rpc.implement'
+            Rpc_protocol.book_query_rpc
+            (fun _state symbol ->
+               Matching_engine.book engine symbol
+               |> Option.map ~f:Order_book.snapshot)
         ; Rpc.Pipe_rpc.implement
             Rpc_protocol.market_data_rpc
             (fun _state symbols ->
