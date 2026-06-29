@@ -1,6 +1,5 @@
 open! Core
 open Jsip_types
-open Async_log_kernel.Ppx_log_syntax
 
 type t =
   { symbol : Symbol.t
@@ -96,7 +95,6 @@ let remove' t order_id =
 ;;
 
 let remove t order_id = ignore (remove' t order_id : Order.t option)
-
 let find t order_id = Map.find t.identifiers order_id
 
 let best_price (t : t) (side : Side.t) =

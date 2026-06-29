@@ -105,6 +105,7 @@ let bench_find_match ~n =
       ; price = Price.of_int_cents (min_price + n)
       ; size = Size.of_int 100
       ; time_in_force = Ioc
+      ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
   in
@@ -124,6 +125,7 @@ let bench_find_match_no_cross ~n =
       ; price = Price.of_int_cents (min_price - 1)
       ; size = Size.of_int 100
       ; time_in_force = Ioc
+      ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
   in
@@ -149,6 +151,7 @@ let bench_add_remove ~n =
       ; price = Price.of_int_cents (min_price + 500)
       ; size = Size.of_int 100
       ; time_in_force = Day
+      ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
   in
@@ -182,6 +185,7 @@ let bench_submit_ioc_cross ~n =
            ; price = Price.of_int_cents max_price
            ; size = Size.of_int 100
            ; time_in_force = Ioc
+           ; client_order_id = Client_order_id.of_string (Int.to_string 1)
            }
        in
        ignore (events : Exchange_event.t list);
@@ -195,6 +199,7 @@ let bench_submit_ioc_cross ~n =
             ; price = Price.of_int_cents !next_price
             ; size = Size.of_int 100
             ; time_in_force = Day
+            ; client_order_id = Client_order_id.of_string (Int.to_string 1)
             }
           : Exchange_event.t list);
        next_price := !next_price + 1;
@@ -214,6 +219,7 @@ let bench_submit_ioc_no_match ~n =
          ; price = Price.of_int_cents (min_price - 1)
          ; size = Size.of_int 100
          ; time_in_force = Ioc
+         ; client_order_id = Client_order_id.of_string (Int.to_string 1)
          }
        : Exchange_event.t list))
 ;;
@@ -233,6 +239,7 @@ let bench_submit_sweep ~n =
          ; price = Price.of_int_cents 99_999
          ; size = Size.of_int (n * 100)
          ; time_in_force = Ioc
+         ; client_order_id = Client_order_id.of_string (Int.to_string 1)
          }
        : Exchange_event.t list);
     (* Re-seed entire book *)
@@ -254,6 +261,7 @@ let bench_find_match_alloc ~n =
       ; price = Price.of_int_cents (min_price + n)
       ; size = Size.of_int 100
       ; time_in_force = Ioc
+      ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
   in
