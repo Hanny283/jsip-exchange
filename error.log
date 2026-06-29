@@ -192,3 +192,63 @@ Cancel _
   (notty-community :with-test)
   (expect_test_helpers_core :with-test)
   (expect_test_helpers_async :with-test)))
+
+
+================================================================================
+SUMMARY OF CHANGES (resolving the errors above + Exercise 1 review fixes)
+NOTE: could not build/promote locally (no opam switch here has core/async).
+Run `dune build`, then `dune runtest` + `dune promote` to lock expect output.
+================================================================================
+
+--- Part 1: compile errors from the log above ---
+
+* lib/order_book/src/order_book.{ml,mli}
+  - `remove'` now returns `Order.t option`; added public `remove` (unit).
+  - mli `For_testing.remove` -> `t -> Order_id.t -> Order.t option`.
+* lib/order_book/src/matching_engine.ml
+  - Fixed `resting_client_order_id` to use `Order.client_order_id resting`
+    (was `order`).
+* Added `client_order_id` (and Fill's aggressor_/resting_client_order_id) to
+  every record literal that needed it; added Cancel_reject / Cancel arms to
+  pattern matches:
+    app/bots/test/test_bots.ml (filled empty `client_order_id =`),
+    lib/types/test/test_order.ml, lib/types/test/test_fill.ml,
+    lib/test_harness/src/harness.ml, lib/order_book/test/test_order_book.ml,
+    lib/order_book/bench/bench_order_book.ml, lib/gateway/test/test_protocol.ml,
+    app/monitor/src/event_log.ml (Cancel_reject in Category/Color),
+    app/client/bin/main.ml (Cancel case), test_exchange_command.ml (Cancel case).
+* lib/test_harness/src/e2e_helpers.ml: login_rpc now returns Or_error -> `>>| ok_exn`.
+
+--- Part 2: Exercise 1 (1a-1g) review fixes ---
+Design calls applied (all exercise-implied): cancel/dedup in the matching
+engine; reject 2nd login of a live name; client order ids reserved for life;
+removed the `as <name>` text clause.
+
+* matching_engine.{ml,mli}: engine owns (participant -> client_order_id ->
+  Order.t) table; submit dedups synchronously (-> Order_reject); ids never
+  freed; new `cancel ~participant ~client_order_id` checks the BOOK for
+  liveness (filled/missing -> Cancel_reject, else Order_cancel + BBO).
+* exchange_server.ml (rewritten): request pipe carries `command = Submit |
+  Cancel`; both RPCs enqueue-and-return; matching loop runs them through the
+  engine. Login now: validation -> Error (not raise); rejects a 2nd live login
+  with Error; registers ONE session and stores that same session in conn state
+  (fixes feed delivering nothing). Removed inline cancel + vestigial event pipe.
+* dispatcher.{ml,mli}: table is now `Session.t Participant.Table.t`;
+  clean_up_session removes the entry (phys_equal-guarded); added find_session;
+  removed state_table.
+* DELETED lib/gateway/src/participant_state.{ml,mli} (now dead).
+* rpc_protocol.ml: names "cancel-reject"->"cancel-order", "sesion-feed"->"session-feed".
+* exchange_command.ml: dropped the `as <name>` clause.
+* app/server/bin/main.ml: connect_as now logs in. app/client/bin/main.ml:
+  login surfaces failure (`>>| ok_exn`) + help text updated.
+* lib/gateway/test/test_rpc_shapes.ml: fixed cancel-order block (regular Rpc,
+  not Pipe_rpc) + filled session-feed block.
+* lib/test_harness/src/harness.ml: builders hand out UNIQUE client ids so the
+  engine's dedup doesn't reject harness-driven multi-order tests.
+* test_exchange_command.ml: rewritten for new grammar (no `as`, id required) +
+  CANCEL tests. test_protocol.ml: round-trip parse input updated.
+
+--- Still TODO (not requested / unverifiable here) ---
+* dune promote: rpc-shape digests + FILL/CANCELLED expect bodies + e2e outputs.
+* Exercise 1 behavioral tests (submit/cancel, dup, cancel-filled, cancel-missing,
+  BBO-after-cancel, resting-fill-on-feed, login-required, dup-login).
