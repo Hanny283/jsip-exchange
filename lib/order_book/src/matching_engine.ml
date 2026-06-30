@@ -5,13 +5,7 @@ type t =
   { books : Order_book.t Symbol.Map.t
   ; order_id_gen : Order_id.Generator.t
   ; mutable next_fill_id : int
-  ; (* Every order the engine has ever accepted, keyed by its owning
-       participant and the client-assigned id. This is the lookup behind both
-       duplicate detection (1e) and cancellation (1f). Entries are never
-       removed: a client order id stays reserved for the life of the engine,
-       even after the order fills or cancels, so ids can't be reused. Whether
-       an order is still live is answered by the book, not by this table. *)
-    client_orders : Order.t Client_order_id.Table.t Participant.Table.t
+  ; client_orders : Order.t Client_order_id.Table.t Participant.Table.t
   }
 [@@deriving sexp_of]
 
@@ -80,8 +74,10 @@ let submit t (request : Order.Request.t) =
     [ Exchange_event.Order_reject { request; reason = "unknown symbol" } ]
   | Some book ->
     let client_orders =
-      Hashtbl.find_or_add t.client_orders request.participant ~default:(fun () ->
-        Client_order_id.Table.create ())
+      Hashtbl.find_or_add
+        t.client_orders
+        request.participant
+        ~default:(fun () -> Client_order_id.Table.create ())
     in
     (match Hashtbl.find client_orders request.client_order_id with
      | Some _ ->
@@ -135,12 +131,6 @@ let submit t (request : Order.Request.t) =
        List.concat [ [ accepted ]; fill_events; post_events; bbo_events ])
 ;;
 
-(* Cancel the order identified by [(participant, client_order_id)] — the same
-   handle the client used to submit it. The id is looked up in [client_orders]
-   and the live order found in its book; a still-resting order is removed and
-   reported with [Order_cancel] (plus a BBO update if the best price moved). An
-   id that was never used, or whose order has already left the book (filled or
-   previously cancelled), yields [Cancel_reject]. *)
 let cancel t ~participant ~client_order_id =
   let order =
     match Hashtbl.find t.client_orders participant with
@@ -186,7 +176,8 @@ let cancel t ~participant ~client_order_id =
             if Bbo.equal bbo_before bbo_after
             then []
             else
-              [ Exchange_event.Best_bid_offer_update { symbol; bbo = bbo_after }
+              [ Exchange_event.Best_bid_offer_update
+                  { symbol; bbo = bbo_after }
               ]
           in
           cancelled :: bbo_events))

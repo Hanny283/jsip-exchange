@@ -157,12 +157,6 @@ let () =
        choose_one
          ~if_nothing_chosen:(Default_to `Do_nothing)
          [ flag
-             "-seed-market-maker"
-             (no_arg_some `Seed_market_maker)
-             ~doc:
-               " pre-seed the book with market maker orders (mutually \
-                exclusive with -trade-back-and-forth)"
-         ; flag
              "-trade-back-and-forth"
              (no_arg_some `Trade_back_and_forth)
              ~doc:
