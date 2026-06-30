@@ -44,3 +44,23 @@ val seed_book : Config.t -> Rpc.Connection.t -> unit Deferred.t
     and reacts to fills by cancelling resting orders and re-posting. *)
 
 val run : Config.t -> Rpc.Connection.t -> unit Deferred.t
+
+(** The per-connection machinery behind [run], exposed so the inventory and
+    outstanding-order bookkeeping can be unit-tested without a live exchange
+    connection. [submit] and [cancel] are the effectful hooks the strategy uses
+    to talk to the exchange; [run] wires them to the RPCs, while tests pass
+    recording closures.
+
+    Returns, in order:
+    - the outstanding-order table (client order id -> size still working),
+    - the per-symbol inventory table (filled buys add, filled sells subtract),
+    - [post], which quotes a fresh ladder skewed by the current inventory, and
+    - the session-feed event handler. *)
+val make
+  :  Config.t
+  -> submit:(Order.Request.t -> unit Deferred.t)
+  -> cancel:(Client_order_id.t -> unit Deferred.t)
+  -> int Client_order_id.Table.t
+     * int Symbol.Table.t
+     * (unit -> unit Deferred.t)
+     * (Exchange_event.t -> unit)

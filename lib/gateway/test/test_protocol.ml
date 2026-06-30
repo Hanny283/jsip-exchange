@@ -84,8 +84,8 @@ let%expect_test "format_event: all event types" =
   [%expect
     {|
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=3 TSLA remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+    CANCELLED client_id=3 id=3 TSLA remaining=50 reason=IOC_REMAINDER
     REJECTED GOOG SELL 10@$280.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x200 ask=$150.10 x100
     BBO AAPL bid=- ask=-

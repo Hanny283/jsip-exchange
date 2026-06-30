@@ -6,8 +6,6 @@ type t =
   ; mutable bids : Order.t Queue.t Price.Map.t
   ; mutable asks : Order.t Queue.t Price.Map.t
   ; mutable identifiers : Order.t Order_id.Map.t
-  ; mutable best_bid : Price.t option
-  ; mutable best_ask : Price.t option
   }
 [@@deriving sexp_of]
 
@@ -16,8 +14,6 @@ let create symbol =
   ; bids = Price.Map.empty
   ; asks = Price.Map.empty
   ; identifiers = Order_id.Map.empty
-  ; best_bid = None
-  ; best_ask = None
   }
 ;;
 
@@ -31,22 +27,6 @@ let set_side_levels t side orders =
   match (side : Side.t) with
   | Buy -> t.bids <- orders
   | Sell -> t.asks <- orders
-;;
-
-let update_best t order =
-  let side = Order.side order in
-  let price = Order.price order in
-  match side with
-  | Buy ->
-    (match t.best_bid with
-     | None -> t.best_bid <- Some price
-     | Some bid ->
-       if Price.compare price bid = 1 then t.best_bid <- Some price else ())
-  | Sell ->
-    (match t.best_bid with
-     | None -> t.best_bid <- Some price
-     | Some bid ->
-       if Price.compare price bid = -1 then t.best_ask <- Some price else ())
 ;;
 
 let set_identifiers t identifiers = t.identifiers <- identifiers
@@ -63,9 +43,7 @@ let add t order =
     Queue.enqueue q order;
     Map.add_exn levels ~key:(Order.price order) ~data:q
     |> set_side_levels t side
-  | Some prices ->
-    Queue.enqueue prices order;
-    update_best t order
+  | Some prices -> Queue.enqueue prices order
 ;;
 
 let remove' t order_id =
@@ -76,29 +54,29 @@ let remove' t order_id =
     let side = Order.side order in
     let price = Order.price order in
     let levels_map = side_levels t side in
-    let price_level = Map.find levels_map price in
-    (match price_level with
+    (match Map.find levels_map price with
      | None -> ()
      | Some q ->
-       Queue.filter_inplace q ~f:(fun x -> Order.compare x order <> 0));
+       Queue.filter_inplace q ~f:(fun x -> Order.compare x order <> 0);
+       (* Drop the price level entirely once its last order leaves, so the
+          map only ever holds non-empty levels — [best_price] relies on this
+          to read the true best off [Map.max_elt] / [Map.min_elt]. *)
+       if Queue.is_empty q
+       then Map.remove levels_map price |> set_side_levels t side);
     Map.remove t.identifiers order_id |> set_identifiers t;
-    (match side with
-     | Buy ->
-       (match Map.max_elt t.bids with
-        | None -> ()
-        | Some (max_elt, _) -> t.best_bid <- Some max_elt)
-     | Sell ->
-       (match Map.min_elt t.bids with
-        | None -> ()
-        | Some (min_elt, _) -> t.best_bid <- Some min_elt));
     Some order
 ;;
 
 let remove t order_id = ignore (remove' t order_id : Order.t option)
 let find t order_id = Map.find t.identifiers order_id
 
+(* Best bid is the highest bid price; best ask is the lowest ask price.
+   Levels are pruned on removal, so the extremal map key always corresponds
+   to a non-empty queue of resting orders. *)
 let best_price (t : t) (side : Side.t) =
-  match side with Buy -> t.best_bid | Sell -> t.best_ask
+  match side with
+  | Buy -> Option.map (Map.max_elt t.bids) ~f:fst
+  | Sell -> Option.map (Map.min_elt t.asks) ~f:fst
 ;;
 
 (* Scan the opposite side for the most aggressively priced resting order
