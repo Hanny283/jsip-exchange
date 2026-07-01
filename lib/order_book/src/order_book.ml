@@ -127,10 +127,14 @@ let best_level t side : Level.t option =
   match best_price t side with
   | None -> None
   | Some price ->
+    (* The level's size is the total shares resting at that price — the sum of
+       every order's remaining size — not the number of orders. *)
     let total_size =
       match Map.find side_levels price with
       | None -> 0
-      | Some q -> Queue.length q
+      | Some q ->
+        Queue.fold q ~init:0 ~f:(fun acc order ->
+          acc + Size.to_int (Order.remaining_size order))
     in
     Some { price; size = Size.of_int total_size }
 ;;
