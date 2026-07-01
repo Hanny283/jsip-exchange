@@ -48,7 +48,7 @@ let%expect_test "exact cross at same price" =
     {|
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=5 BUY resting=1(Bob) client_id=4
     |}]
 ;;
 
@@ -60,7 +60,7 @@ let%expect_test "buy crosses at resting price, not aggressor price" =
     {|
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     ACCEPTED id=2 AAPL BUY 100@$151.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=7 BUY resting=1(Bob) client_id=6
     |}]
 ;;
 
@@ -74,7 +74,7 @@ let%expect_test "partial fill: buy is larger than resting sell" =
     {|
     ACCEPTED id=1 AAPL SELL 60@$150.00 DAY
     ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x60 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x60 aggressor=2(Alice) client_id=9 BUY resting=1(Bob) client_id=8
     |}];
   (* Remainder rests on the book *)
   Harness.print_book t Harness.aapl;
@@ -106,8 +106,8 @@ let%expect_test "aggressor sweeps multiple resting orders" =
     ACCEPTED id=1 AAPL SELL 50@$150.00 DAY
     ACCEPTED id=2 AAPL SELL 80@$150.00 DAY
     ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=1(Bob)
-    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=2(Charlie)
+    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) client_id=12 BUY resting=1(Bob) client_id=10
+    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice) client_id=12 BUY resting=2(Charlie) client_id=11
     |}]
 ;;
 
@@ -121,7 +121,7 @@ let%expect_test "IOC: no match means immediate cancel" =
   [%expect
     {|
     ACCEPTED id=1 AAPL BUY 100@$150.00 IOC
-    CANCELLED id=1 AAPL remaining=100 reason=IOC_REMAINDER
+    CANCELLED client_id=13 id=1 AAPL remaining=100 reason=IOC_REMAINDER
     |}]
 ;;
 
@@ -135,8 +135,8 @@ let%expect_test "IOC: partial fill then cancel remainder" =
     {|
     ACCEPTED id=1 AAPL SELL 40@$150.00 DAY
     ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
-    FILL fill_id=1 AAPL $150.00 x40 aggressor=2(Alice) BUY resting=1(Bob)
-    CANCELLED id=2 AAPL remaining=60 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x40 aggressor=2(Alice) client_id=15 BUY resting=1(Bob) client_id=14
+    CANCELLED client_id=15 id=2 AAPL remaining=60 reason=IOC_REMAINDER
     |}]
 ;;
 
@@ -150,7 +150,7 @@ let%expect_test "IOC: full fill means no cancel event" =
     {|
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=17 BUY resting=1(Bob) client_id=16
     |}]
 ;;
 
@@ -161,7 +161,7 @@ let%expect_test "IOC: does not rest on book" =
   [%expect
     {|
     ACCEPTED id=1 AAPL BUY 100@$150.00 IOC
-    CANCELLED id=1 AAPL remaining=100 reason=IOC_REMAINDER
+    CANCELLED client_id=18 id=1 AAPL remaining=100 reason=IOC_REMAINDER
     === AAPL ===
       BIDS: (empty)
       ASKS: (empty)
@@ -248,7 +248,7 @@ let%expect_test "price priority: matches best-priced resting order" =
     ACCEPTED id=1 AAPL SELL 100@$10.00 DAY
     ACCEPTED id=2 AAPL SELL 100@$10.05 DAY
     ACCEPTED id=3 AAPL BUY 100@$10.05 DAY
-    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice) BUY resting=1(Charlie)
+    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice) client_id=24 BUY resting=1(Charlie) client_id=22
     |}]
 ;;
 
@@ -367,7 +367,7 @@ let%expect_test "scenario: two participants trade, book reflects state" =
     ACCEPTED id=3 AAPL SELL 100@$150.10 DAY
     ACCEPTED id=4 AAPL SELL 150@$150.20 DAY
     ACCEPTED id=5 AAPL BUY 50@$150.10 DAY
-    FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie) BUY resting=3(Bob)
+    FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie) client_id=39 BUY resting=3(Bob) client_id=37
     === AAPL ===
       BIDS:
         $149.90 x100
@@ -404,10 +404,10 @@ let%expect_test "scenario: aggressive IOC sweeps entire book" =
     ACCEPTED id=2 AAPL SELL 50@$150.10 DAY
     ACCEPTED id=3 AAPL SELL 50@$150.20 DAY
     ACCEPTED id=4 AAPL BUY 200@$150.20 IOC
-    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice) BUY resting=1(Bob)
-    FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice) BUY resting=2(Charlie)
-    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice) BUY resting=3(Bob)
-    CANCELLED id=4 AAPL remaining=50 reason=IOC_REMAINDER
+    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice) client_id=43 BUY resting=1(Bob) client_id=40
+    FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice) client_id=43 BUY resting=2(Charlie) client_id=41
+    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice) client_id=43 BUY resting=3(Bob) client_id=42
+    CANCELLED client_id=43 id=4 AAPL remaining=50 reason=IOC_REMAINDER
     === AAPL ===
       BIDS: (empty)
       ASKS: (empty)
@@ -458,8 +458,112 @@ let%expect_test "scenario: fill IDs are globally sequential" =
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
     ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) client_id=49 BUY resting=1(Bob) client_id=47
     ACCEPTED id=4 TSLA BUY 100@$200.00 DAY
-    FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice) BUY resting=2(Charlie)
+    FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice) client_id=50 BUY resting=2(Charlie) client_id=48
+    |}]
+;;
+
+(* ================================================================ *)
+(* Cancellation and duplicate client-order-id rejection *)
+(* ================================================================ *)
+
+(* [Harness.buy]/[Harness.sell] hand out a fresh [client_order_id] each call,
+   so tests that later cancel (or deliberately collide) an order pin the id by
+   overriding the field on the builder-produced request. *)
+let with_cid cid (request : Order.Request.t) =
+  { request with client_order_id = Client_order_id.of_string cid }
+;;
+
+let%expect_test "cancel: a resting Day order is removed from the book" =
+  let t = Harness.create () in
+  submit_ t (with_cid "42" (Harness.buy ~price_cents:15000 ()));
+  [%expect {| ACCEPTED id=1 AAPL BUY 100@$150.00 DAY |}];
+  (* Participant-requested cancel of the resting order. *)
+  Matching_engine.cancel
+    (Harness.engine t)
+    ~participant:Harness.alice
+    ~client_order_id:(Client_order_id.of_string "42")
+  |> Harness.print_events ~show:Harness.Show.no_market_data;
+  [%expect
+    {| CANCELLED client_id=42 id=1 AAPL remaining=100 reason=PARTICIPANT_REQUESTED |}];
+  (* The book is now empty. *)
+  Harness.print_book t Harness.aapl;
+  [%expect
+    {|
+    === AAPL ===
+      BIDS: (empty)
+      ASKS: (empty)
+      BBO: - / -
+    |}]
+;;
+
+let%expect_test "cancel: removing the best order reverts the BBO" =
+  let t = Harness.create () in
+  submit_ t (with_cid "7" (Harness.buy ~price_cents:15000 ()));
+  [%expect {| ACCEPTED id=1 AAPL BUY 100@$150.00 DAY |}];
+  (* Cancelling the sole bid both cancels the order and emits a BBO update
+     showing the bid reverting to empty. *)
+  Matching_engine.cancel
+    (Harness.engine t)
+    ~participant:Harness.alice
+    ~client_order_id:(Client_order_id.of_string "7")
+  |> Harness.print_events;
+  [%expect
+    {|
+    CANCELLED client_id=7 id=1 AAPL remaining=100 reason=PARTICIPANT_REQUESTED
+    BBO AAPL bid=- ask=-
+    |}]
+;;
+
+let%expect_test "duplicate client_order_id: rejected per participant" =
+  let t = Harness.create () in
+  submit_ t (with_cid "9001" (Harness.buy ~price_cents:15000 ()));
+  submit_ t (with_cid "9001" (Harness.buy ~price_cents:14900 ()));
+  (* Alice reusing her own id is rejected; the id is a per-participant handle,
+     so Bob reusing the same id is accepted. *)
+  submit_
+    t
+    (with_cid
+       "9001"
+       (Harness.buy ~price_cents:14900 ~participant:Harness.bob ()));
+  [%expect
+    {|
+    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
+    REJECTED AAPL BUY 100@$149.00 reason=duplicate client order id
+    ACCEPTED id=2 AAPL BUY 100@$149.00 DAY
+    |}]
+;;
+
+let%expect_test "cancel: unknown client_order_id is rejected" =
+  let t = Harness.create () in
+  Matching_engine.cancel
+    (Harness.engine t)
+    ~participant:Harness.alice
+    ~client_order_id:(Client_order_id.of_string "9999")
+  |> Harness.print_events;
+  [%expect {| CANCEL: Alice 9999 order not found |}]
+;;
+
+let%expect_test "cancel: a fully filled order can no longer be cancelled" =
+  let t = Harness.create () in
+  submit_
+    t
+    (with_cid
+       "8080"
+       (Harness.sell ~price_cents:15000 ~participant:Harness.bob ()));
+  submit_ t (Harness.buy ~price_cents:15000 ());
+  (* Bob's resting sell was fully filled, so its handle no longer maps to a
+     live order — cancelling it is rejected. *)
+  Matching_engine.cancel
+    (Harness.engine t)
+    ~participant:Harness.bob
+    ~client_order_id:(Client_order_id.of_string "8080")
+  |> Harness.print_events;
+  [%expect {|
+    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=57 BUY resting=1(Bob) client_id=8080
+    CANCEL: Bob 8080 order already filled or cancelled
     |}]
 ;;

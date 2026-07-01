@@ -4,8 +4,8 @@ open Jsip_order_book
 open Jsip_gateway
 
 (* Command parsing now lives in [Exchange_command]; its tests have moved to
-   [test_exchange_command.ml]. What remains here is event formatting, which is
-   all [Protocol] still owns. *)
+   [test_exchange_command.ml]. What remains here is event formatting, which
+   is all [Protocol] still owns. *)
 
 (* --- Event formatting --- *)
 
@@ -84,7 +84,7 @@ let%expect_test "format_event: all event types" =
   [%expect
     {|
     ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)2 BUY resting=1(Bob)1
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=2 BUY resting=1(Bob) client_id=1
     CANCELLED client_id=3 id=3 TSLA remaining=50 reason=IOC_REMAINDER
     REJECTED GOOG SELL 10@$280.00 reason=unknown symbol
     BBO AAPL bid=$149.90 x200 ask=$150.10 x100
@@ -120,7 +120,7 @@ let%expect_test "round-trip: parse a command, submit, format result" =
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     BBO AAPL bid=- ask=$150.00 x100
     ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=1 BUY resting=1(Bob) client_id=1
     TRADE AAPL $150.00 x100
     BBO AAPL bid=- ask=-
     |}]

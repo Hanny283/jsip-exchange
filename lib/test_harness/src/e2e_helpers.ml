@@ -35,6 +35,13 @@ let connect_as ~port participant =
   Deferred.return { conn }
 ;;
 
+let connect_raw ~port =
+  let where =
+    Tcp.Where_to_connect.of_host_and_port { host = "localhost"; port }
+  in
+  Rpc.Connection.client where >>| Result.ok_exn
+;;
+
 let connection client = client.conn
 
 let rpc_submit client request =

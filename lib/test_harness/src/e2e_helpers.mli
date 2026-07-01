@@ -23,6 +23,12 @@ type client
     with a participant tag prefix *)
 val connect_as : port:int -> Participant.t -> client Deferred.t
 
+(** Open a raw RPC connection to [port] without logging in or subscribing to
+    a session feed. Useful for tests that exercise the pre-login error paths
+    (submitting or cancelling before login) or that need a second connection
+    to attempt a duplicate login by dispatching [login_rpc] directly. *)
+val connect_raw : port:int -> Rpc.Connection.t Deferred.t
+
 (** The raw RPC connection, useful for tests that exercise unusual RPC paths
     (audit log subscriptions, second clients on the same connection, etc.). *)
 val connection : client -> Rpc.Connection.t
