@@ -3,24 +3,18 @@ open! Async
 open Jsip_types
 module Context = Jsip_bot_runtime.Bot_runtime.Context
 
-(* Per-symbol state the bot updates as market events arrive. The fair value is
-   deliberately NOT stored here: it's read fresh from the fundamental oracle at
-   (re)seed time via [Context.fundamental], so the ladder always tracks the
-   latest fundamental. *)
 type symbol_info =
   { mutable inventory : int
-    (* Net position: filled buys add, filled sells subtract. *)
   ; mutable half_spread_cents : int
-    (* Half the width of our quote. Adapts to the observed market spread. *)
   ; mutable last_spread_cents : int option
-    (* Most recent market spread from a BBO update; [None] when a side of the
-       book is empty. Used to decide whether the market is dislocated. *)
+      (* Most recent market spread from a BBO update; [None] when a side of
+         the book is empty. Used to decide whether the market is dislocated. *)
   ; mutable quoted : (int * int) option
-    (* The [(skewed_fair, half_spread)] our currently-resting ladder was placed
-       at, or [None] if we're standing aside. Lets us skip re-quoting when the
-       target hasn't moved (otherwise our own quotes would loop us forever). *)
+      (* The [(skewed_fair, half_spread)] our currently-resting ladder was
+         placed at, or [None] if we're standing aside. Lets us skip
+         re-quoting when the target hasn't moved (otherwise our own quotes
+         would loop us forever). *)
   ; resting_orders : int Client_order_id.Table.t
-    (* Client order IDs we believe are resting, -> size still working. *)
   }
 
 module Config = struct
@@ -31,11 +25,11 @@ module Config = struct
     ; inventory_skew_cents_per_share : int
     ; initial_half_spread_cents : int
     ; min_half_spread_cents : int
-      (* Floor on our half-spread, so we never quote a zero/crossed market. *)
+        (* Floor on our half-spread, so we never quote a zero/crossed market. *)
     ; max_spread_cents : int
-      (* Reseed tolerance: if the observed market spread is wider than this, we
-         assume a whale swept the book and stand aside instead of quoting into
-         the gap -- the liquidity will fill back in. *)
+        (* Reseed tolerance: if the observed market spread is wider than
+           this, we assume a whale swept the book and stand aside instead of
+           quoting into the gap -- the liquidity will fill back in. *)
     ; symbol_state : symbol_info Symbol.Table.t
     ; generator : Client_order_id.Generator.t
     }
@@ -92,7 +86,8 @@ let quote_targets (config : Config.t) context symbol (info : symbol_info) =
   skewed_fair, info.half_spread_cents
 ;;
 
-let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread =
+let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread
+  =
   Deferred.List.iter
     ~how:`Parallel
     (List.init config.num_levels ~f:Fn.id)
@@ -107,7 +102,8 @@ let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread =
            ; price = Price.of_int_cents (skewed_fair - offset)
            ; size = Size.of_int config.size_per_level
            ; time_in_force = Day
-           ; client_order_id = Client_order_id.Generator.next config.generator
+           ; client_order_id =
+               Client_order_id.Generator.next config.generator
            }
            : Order.Request.t)
       and _ =
@@ -119,7 +115,8 @@ let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread =
            ; price = Price.of_int_cents (skewed_fair + offset)
            ; size = Size.of_int config.size_per_level
            ; time_in_force = Day
-           ; client_order_id = Client_order_id.Generator.next config.generator
+           ; client_order_id =
+               Client_order_id.Generator.next config.generator
            }
            : Order.Request.t)
       in
@@ -161,13 +158,16 @@ let on_event (config : Config.t) context (event : Exchange_event.t) =
     in
     info.inventory <- info.inventory + (side * Size.to_int event.size);
     let remaining =
-      Hashtbl.update_and_return info.resting_orders client_order_id ~f:(function
+      Hashtbl.update_and_return
+        info.resting_orders
+        client_order_id
+        ~f:(function
         | Some remaining -> remaining - Size.to_int event.size
         | None -> 0)
     in
     if remaining <= 0 then Hashtbl.remove info.resting_orders client_order_id;
-    (* Re-quote around the new inventory, unless the market is dislocated -- in
-       which case stand aside and forget our quotes until it recovers. *)
+    (* Re-quote around the new inventory, unless the market is dislocated --
+       in which case stand aside and forget our quotes until it recovers. *)
     if market_ok config info
     then reseed config context event.symbol info
     else (
@@ -186,7 +186,8 @@ let on_event (config : Config.t) context (event : Exchange_event.t) =
     Deferred.unit
   | Best_bid_offer_update { symbol; bbo } ->
     let info = get_info config symbol in
-    info.last_spread_cents <- Option.map (Bbo.spread bbo) ~f:Price.to_int_cents;
+    info.last_spread_cents
+    <- Option.map (Bbo.spread bbo) ~f:Price.to_int_cents;
     if not (market_ok config info)
     then (
       (* Wide spread or a side swept out -- likely a whale. Stand aside and
@@ -197,7 +198,7 @@ let on_event (config : Config.t) context (event : Exchange_event.t) =
       (* Keep our half-spread in line with the market so we stay competitive. *)
       let spread_cents = Option.value info.last_spread_cents ~default:0 in
       info.half_spread_cents
-        <- Int.max config.min_half_spread_cents (spread_cents / 2);
+      <- Int.max config.min_half_spread_cents (spread_cents / 2);
       let target = quote_targets config context symbol info in
       match info.quoted with
       | Some current when [%compare.equal: int * int] current target ->

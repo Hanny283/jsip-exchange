@@ -1,5 +1,270 @@
+ |let%expect_test "e2e: market data subscriber receives trade and BBO updates" =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind sub = connect_as ~port (Participant.of_string "Sub") in
+ |    let%bind alice = connect_as ~port Harness.alice in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    let%bind result =
+ |      Rpc.Pipe_rpc.dispatch
+ |        Rpc_protocol.market_data_rpc
+File "lib/gateway/test/test_end_to_end.ml", line 126, characters 0-1:
+ |      match result with
+ |      | Ok (Ok (reader, _id)) -> reader
+ |      | _ -> failwith "subscribe failed"
+ |    in
+ |    don't_wait_for
+ |      (Pipe.iter_without_pushback reader ~f:(fun event ->
+ |         let e = Protocol.format_event event in
+ |         print_endline [%string "[MD Subscriber] %{e}"]));
+ |    (* Post a sell *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+ |    [%expect
+ |      {|
+!|      [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+-|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100
++|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x1
+ |      |}];
+ |    (* Cross it with a buy *)
+ |    let%bind () = rpc_submit alice (Harness.buy ~price_cents:15000 ()) in
+ |    [%expect
+ |      {|
+-|      [for Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+-|      [for Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
+-|      [for Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
++|      [Alice] ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
++|      [Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)7 BUY resting=1(Bob)6
++|      [Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)7 BUY resting=1(Bob)6
+ |      [MD Subscriber] TRADE AAPL $150.00 x100
+ |      [MD Subscriber] BBO AAPL bid=- ask=-
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |let%expect_test "e2e: subscriber only sees events for subscribed symbol" =
+ |  with_server ~symbols:[ Harness.aapl; Harness.tsla ] (fun ~server:_ ~port ->
+ |    let%bind sub = connect_as ~port (Participant.of_string "Sub") in
+ |    let%bind bob = connect_as ~port Harness.bob in
+ |    let%bind result =
+ |      Rpc.Pipe_rpc.dispatch
+ |        Rpc_protocol.market_data_rpc
+ |        (connection sub)
+ |        [ Harness.aapl ]
+ |    in
+File "lib/gateway/test/test_end_to_end.ml", line 171, characters 0-1:
+ |      | _ -> failwith "subscribe failed"
+ |    in
+ |    don't_wait_for
+ |      (Pipe.iter_without_pushback reader ~f:(fun event ->
+ |         let e = Protocol.format_event event in
+ |         print_endline [%string "[MD Subscriber] %{e}"]));
+ |    (* Post on TSLA — subscriber should NOT see this *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell
+ |           ~price_cents:20000
+ |           ~symbol:Harness.tsla
+ |           ~participant:Harness.bob
+ |           ())
+ |    in
+!|    [%expect {| [for Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
+ |    (* Post on AAPL — subscriber SHOULD see this *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+ |    [%expect
+ |      {|
+!|      [for Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY
+-|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100
++|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x1
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |(* ---------------------------------------------------------------- *)
+ |(* Concurrent submission test *)
+ |(* ---------------------------------------------------------------- *)
+ |
+ |let%expect_test "e2e: many clients submit orders concurrently" =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind seed = connect_as ~port Harness.bob in
+ |    let%bind () =
+ |      Deferred.List.iter
+ |        (List.init 10 ~f:Fn.id)
+ |        ~how:`Sequential
+ |        ~f:(fun i ->
+File "lib/gateway/test/test_end_to_end.ml", line 257, characters 0-1:
+ |      match result with
+ |      | Ok (Ok (reader, _id)) -> reader
+ |      | _ -> failwith "subscribe failed"
+ |    in
+ |    don't_wait_for
+ |      (Pipe.iter_without_pushback reader ~f:(fun event ->
+ |         let e = Protocol.format_event event in
+ |         print_endline [%string "[AUDIT] %{e}"]));
+ |    (* Post a sell on AAPL — audit subscriber should see ACCEPTED and BBO. *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+ |    in
+ |    [%expect
+ |      {|
+-|      [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |      [AUDIT] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+-|      [AUDIT] BBO AAPL bid=- ask=$150.00 x100
++|      [AUDIT] BBO AAPL bid=- ask=$150.00 x1
++|      [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+ |      |}];
+ |    (* Post a sell on TSLA — audit subscriber should see this too
+ |       (multi-symbol). *)
+ |    let%bind () =
+ |      rpc_submit
+ |        bob
+ |        (Harness.sell
+ |           ~price_cents:20000
+ |           ~symbol:Harness.tsla
+ |           ~participant:Harness.bob
+ |           ())
+ |    in
+ |    [%expect
+ |      {|
+-|      [for Bob] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+ |      [AUDIT] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+-|      [AUDIT] BBO TSLA bid=- ask=$200.00 x100
++|      [AUDIT] BBO TSLA bid=- ask=$200.00 x1
++|      [Bob] ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
+ |      |}];
+ |    (* Cross the AAPL sell — the audit log should see ACCEPTED + FILL + BBO. *)
+ |    let%bind () = rpc_submit alice (Harness.buy ~price_cents:15000 ()) in
+ |    [%expect
+ |      {|
+-|      [for Alice] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+-|      [for Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+-|      [for Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
+ |      [AUDIT] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+!|      [AUDIT] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)27 BUY resting=1(Bob)25
+ |      [AUDIT] TRADE AAPL $150.00 x100
+ |      [AUDIT] BBO AAPL bid=- ask=-
++|      [Alice] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
++|      [Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)27 BUY resting=1(Bob)25
++|      [Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)27 BUY resting=1(Bob)25
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |let%expect_test "dispatcher: closing a subscriber's reader removes the \
+ |                 writer"
+ |  =
+ |  let dispatcher = Dispatcher.create () in
+ |  print_s
+ |    [%message
+ |      "initial"
+ |        ~count:
+ |          (Dispatcher.For_testing.audit_subscriber_count dispatcher : int)];
+ |  [%expect {| (initial (count 0)) |}];
+ |  let reader_a = Dispatcher.subscribe_audit dispatcher in
+ |  let reader_b = Dispatcher.subscribe_audit dispatcher in
+File "app/market_maker/test/test_market_maker.ml", line 1, characters 0-0:
+------ app/market_maker/test/test_market_maker.ml
+++++++ app/market_maker/test/test_market_maker.ml.corrected
+File "app/market_maker/test/test_market_maker.ml", line 28, characters 0-1:
+ |  ; symbol = Harness.aapl
+ |  ; fair_value_cents = 15000
+ |  ; half_spread_cents = 10
+ |  ; size_per_level = 100
+ |  ; num_levels = 3
+ |  ; inventory_skew_cents_per_share = 1
+ |  }
+ |;;
+ |
+ |let%expect_test "seed_book: places symmetric bids and asks around fair value"
+ |  =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind mm = connect_as ~port Harness.market_maker in
+ |    let%bind () = Market_maker.seed_book default_config (connection mm) in
+ |    [%expect
+ |      {|
+!|      [for MarketMaker] ACCEPTED id=1 AAPL BUY 100@$149.90 DAY
+!|      [for MarketMaker] ACCEPTED id=2 AAPL SELL 100@$150.10 DAY
+!|      [for MarketMaker] ACCEPTED id=3 AAPL BUY 100@$149.89 DAY
+!|      [for MarketMaker] ACCEPTED id=4 AAPL SELL 100@$150.11 DAY
+!|      [for MarketMaker] ACCEPTED id=5 AAPL BUY 100@$149.88 DAY
+!|      [for MarketMaker] ACCEPTED id=6 AAPL SELL 100@$150.12 DAY
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |(* --- Unit tests for the dynamic market maker (exercises 2a-2c) ---
+ |
+ |   These drive [Market_maker.make] directly with recording [submit] / [cancel]
+ |   closures, so we can push a controlled sequence of session-feed events at the
+ |   bot and inspect exactly what it tracks and what it sends. No live server,
+ |   fully deterministic. *)
+ |
+ |type harness =
+ |  { submitted : Order.Request.t list ref
+ |  ; cancelled : Client_order_id.t list ref
+ |  ; outstanding : int Client_order_id.Table.t
+ |  ; inventory : int Symbol.Table.t
+ubuntu@ip-172-31-20-20:~/jsip-exchange$ dune build 
+ubuntu@ip-172-31-20-20:~/jsip-exchange$                                                   
+ubuntu@ip-172-31-20-20:~/jsip-exchange$ dune runtest 2> error.log
+ubuntu@ip-172-31-20-20:~/jsip-exchange$ dune buidl 
+dune: unknown command 'buidl', did you mean 'build'?
+Usage: dune COMMAND …
+Try 'dune --help' for more information.
+ubuntu@ip-172-31-20-20:~/jsip-exchange$ dune build 
+ubuntu@ip-172-31-20-20:~/jsip-exchange$ dune runtest
 basename: missing operand
 Try 'basename --help' for more information.
+File "app/market_maker/test/test_market_maker.ml", line 1, characters 0-0:
+------ app/market_maker/test/test_market_maker.ml
+++++++ app/market_maker/test/test_market_maker.ml.corrected
+File "app/market_maker/test/test_market_maker.ml", line 28, characters 0-1:
+ |  ; symbol = Harness.aapl
+ |  ; fair_value_cents = 15000
+ |  ; half_spread_cents = 10
+ |  ; size_per_level = 100
+ |  ; num_levels = 3
+ |  ; inventory_skew_cents_per_share = 1
+ |  }
+ |;;
+ |
+ |let%expect_test "seed_book: places symmetric bids and asks around fair value"
+ |  =
+ |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
+ |    let%bind mm = connect_as ~port Harness.market_maker in
+ |    let%bind () = Market_maker.seed_book default_config (connection mm) in
+ |    [%expect
+ |      {|
+!|      [for MarketMaker] ACCEPTED id=1 AAPL BUY 100@$149.90 DAY
+!|      [for MarketMaker] ACCEPTED id=2 AAPL SELL 100@$150.10 DAY
+!|      [for MarketMaker] ACCEPTED id=3 AAPL BUY 100@$149.89 DAY
+!|      [for MarketMaker] ACCEPTED id=4 AAPL SELL 100@$150.11 DAY
+!|      [for MarketMaker] ACCEPTED id=5 AAPL BUY 100@$149.88 DAY
+!|      [for MarketMaker] ACCEPTED id=6 AAPL SELL 100@$150.12 DAY
+ |      |}];
+ |    return ())
+ |;;
+ |
+ |(* --- Unit tests for the dynamic market maker (exercises 2a-2c) ---
+ |
+ |   These drive [Market_maker.make] directly with recording [submit] / [cancel]
+ |   closures, so we can push a controlled sequence of session-feed events at the
+ |   bot and inspect exactly what it tracks and what it sends. No live server,
+ |   fully deterministic. *)
+ |
+ |type harness =
+ |  { submitted : Order.Request.t list ref
+ |  ; cancelled : Client_order_id.t list ref
+ |  ; outstanding : int Client_order_id.Table.t
+ |  ; inventory : int Symbol.Table.t
 File "lib/order_book/test/test_order_book.ml", line 1, characters 0-0:
 ------ lib/order_book/test/test_order_book.ml
 ++++++ lib/order_book/test/test_order_book.ml.corrected
@@ -53,8 +318,8 @@ File "lib/order_book/test/test_order_book.ml", line 220, characters 0-1:
  |    {|
  |    BBO: - / -
 -|    BBO: $149.90 x100 / -
--|    BBO: $149.90 x100 / $150.10 x100
 +|    BBO: $149.90 x1 / -
+-|    BBO: $149.90 x100 / $150.10 x100
 +|    BBO: $149.90 x1 / $150.10 x1
  |    |}]
  |;;
@@ -113,8 +378,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |    {|
  |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
  |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
--|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-+|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)5 BUY resting=1(Bob)4
+!|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)5 BUY resting=1(Bob)4
  |    |}]
  |;;
  |
@@ -126,8 +390,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |    {|
  |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
  |    ACCEPTED id=2 AAPL BUY 100@$151.00 DAY
--|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-+|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)7 BUY resting=1(Bob)6
+!|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)7 BUY resting=1(Bob)6
  |    |}]
  |;;
  |
@@ -141,8 +404,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |    {|
  |    ACCEPTED id=1 AAPL SELL 60@$150.00 DAY
  |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
--|    FILL fill_id=1 AAPL $150.00 x60 aggressor=2(Alice) BUY resting=1(Bob)
-+|    FILL fill_id=1 AAPL $150.00 x60 aggressor=2(Alice)9 BUY resting=1(Bob)8
+!|    FILL fill_id=1 AAPL $150.00 x60 aggressor=2(Alice)9 BUY resting=1(Bob)8
  |    |}];
  |  (* Remainder rests on the book *)
  |  Harness.print_book t Harness.aapl;
@@ -175,10 +437,8 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |    ACCEPTED id=1 AAPL SELL 50@$150.00 DAY
  |    ACCEPTED id=2 AAPL SELL 80@$150.00 DAY
  |    ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
--|    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=1(Bob)
--|    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice) BUY resting=2(Charlie)
-+|    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice)12 BUY resting=1(Bob)10
-+|    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice)12 BUY resting=2(Charlie)11
+!|    FILL fill_id=1 AAPL $150.00 x50 aggressor=3(Alice)12 BUY resting=1(Bob)10
+!|    FILL fill_id=2 AAPL $150.00 x50 aggressor=3(Alice)12 BUY resting=2(Charlie)11
  |    |}]
  |;;
  |
@@ -192,8 +452,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |  [%expect
  |    {|
  |    ACCEPTED id=1 AAPL BUY 100@$150.00 IOC
--|    CANCELLED id=1 AAPL remaining=100 reason=IOC_REMAINDER
-+|    CANCELLED client_id=13 id=1 AAPL remaining=100 reason=IOC_REMAINDER
+!|    CANCELLED client_id=13 id=1 AAPL remaining=100 reason=IOC_REMAINDER
  |    |}]
  |;;
  |
@@ -207,10 +466,8 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |    {|
  |    ACCEPTED id=1 AAPL SELL 40@$150.00 DAY
  |    ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
--|    FILL fill_id=1 AAPL $150.00 x40 aggressor=2(Alice) BUY resting=1(Bob)
--|    CANCELLED id=2 AAPL remaining=60 reason=IOC_REMAINDER
-+|    FILL fill_id=1 AAPL $150.00 x40 aggressor=2(Alice)15 BUY resting=1(Bob)14
-+|    CANCELLED client_id=15 id=2 AAPL remaining=60 reason=IOC_REMAINDER
+!|    FILL fill_id=1 AAPL $150.00 x40 aggressor=2(Alice)15 BUY resting=1(Bob)14
+!|    CANCELLED client_id=15 id=2 AAPL remaining=60 reason=IOC_REMAINDER
  |    |}]
  |;;
  |
@@ -224,8 +481,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |    {|
  |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
  |    ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
--|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-+|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)17 BUY resting=1(Bob)16
+!|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)17 BUY resting=1(Bob)16
  |    |}]
  |;;
  |
@@ -236,8 +492,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 51, characters 0-1:
  |  [%expect
  |    {|
  |    ACCEPTED id=1 AAPL BUY 100@$150.00 IOC
--|    CANCELLED id=1 AAPL remaining=100 reason=IOC_REMAINDER
-+|    CANCELLED client_id=18 id=1 AAPL remaining=100 reason=IOC_REMAINDER
+!|    CANCELLED client_id=18 id=1 AAPL remaining=100 reason=IOC_REMAINDER
  |    === AAPL ===
  |      BIDS: (empty)
  |      ASKS: (empty)
@@ -312,8 +567,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 251, characters 0-1:
  |    ACCEPTED id=1 AAPL SELL 100@$10.00 DAY
  |    ACCEPTED id=2 AAPL SELL 100@$10.05 DAY
  |    ACCEPTED id=3 AAPL BUY 100@$10.05 DAY
--|    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice) BUY resting=1(Charlie)
-+|    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice)24 BUY resting=1(Charlie)22
+!|    FILL fill_id=1 AAPL $10.00 x100 aggressor=3(Alice)24 BUY resting=1(Charlie)22
  |    |}]
  |;;
  |
@@ -372,8 +626,7 @@ File "lib/order_book/test/test_matching_engine.ml", line 370, characters 0-1:
  |    ACCEPTED id=3 AAPL SELL 100@$150.10 DAY
  |    ACCEPTED id=4 AAPL SELL 150@$150.20 DAY
  |    ACCEPTED id=5 AAPL BUY 50@$150.10 DAY
--|    FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie) BUY resting=3(Bob)
-+|    FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie)39 BUY resting=3(Bob)37
+!|    FILL fill_id=1 AAPL $150.10 x50 aggressor=5(Charlie)39 BUY resting=3(Bob)37
  |    === AAPL ===
  |      BIDS:
  |        $149.90 x100
@@ -382,8 +635,8 @@ File "lib/order_book/test/test_matching_engine.ml", line 370, characters 0-1:
  |        $150.10 x50
  |        $150.20 x150
 -|      BBO: $149.90 x100 / $150.10 x50
--|    BBO AAPL: $149.90 x100 / $150.10 x50
 +|      BBO: $149.90 x1 / $150.10 x1
+-|    BBO AAPL: $149.90 x100 / $150.10 x50
 +|    BBO AAPL: $149.90 x1 / $150.10 x1
  |    |}]
  |;;
@@ -412,14 +665,10 @@ File "lib/order_book/test/test_matching_engine.ml", line 370, characters 0-1:
  |    ACCEPTED id=2 AAPL SELL 50@$150.10 DAY
  |    ACCEPTED id=3 AAPL SELL 50@$150.20 DAY
  |    ACCEPTED id=4 AAPL BUY 200@$150.20 IOC
--|    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice) BUY resting=1(Bob)
--|    FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice) BUY resting=2(Charlie)
--|    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice) BUY resting=3(Bob)
--|    CANCELLED id=4 AAPL remaining=50 reason=IOC_REMAINDER
-+|    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice)43 BUY resting=1(Bob)40
-+|    FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice)43 BUY resting=2(Charlie)41
-+|    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice)43 BUY resting=3(Bob)42
-+|    CANCELLED client_id=43 id=4 AAPL remaining=50 reason=IOC_REMAINDER
+!|    FILL fill_id=1 AAPL $150.00 x50 aggressor=4(Alice)43 BUY resting=1(Bob)40
+!|    FILL fill_id=2 AAPL $150.10 x50 aggressor=4(Alice)43 BUY resting=2(Charlie)41
+!|    FILL fill_id=3 AAPL $150.20 x50 aggressor=4(Alice)43 BUY resting=3(Bob)42
+!|    CANCELLED client_id=43 id=4 AAPL remaining=50 reason=IOC_REMAINDER
  |    === AAPL ===
  |      BIDS: (empty)
  |      ASKS: (empty)
@@ -453,40 +702,9 @@ File "lib/order_book/test/test_matching_engine.ml", line 461, characters 0-1:
  |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
  |    ACCEPTED id=2 TSLA SELL 100@$200.00 DAY
  |    ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
--|    FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
-+|    FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)49 BUY resting=1(Bob)47
+!|    FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)49 BUY resting=1(Bob)47
  |    ACCEPTED id=4 TSLA BUY 100@$200.00 DAY
--|    FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice) BUY resting=2(Charlie)
-+|    FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice)50 BUY resting=2(Charlie)48
- |    |}]
- |;;
-File "lib/gateway/test/test_protocol.ml", line 1, characters 0-0:
------- lib/gateway/test/test_protocol.ml
-++++++ lib/gateway/test/test_protocol.ml.corrected
-File "lib/gateway/test/test_protocol.ml", line 121, characters 0-1:
- |  (* Parse a buy command from text and submit it *)
- |  let request =
- |    match
- |      Exchange_command.parse
- |        ~default_participant:Harness.alice
- |        "BUY 1 AAPL 100 150.00"
- |    with
- |    | Ok (Exchange_command.Submit request) -> request
- |    | Ok _ -> failwith "expected a Submit command"
- |    | Error err -> Error.raise err
- |  in
- |  let events = Matching_engine.submit (Harness.engine t) request in
- |  print_endline (Protocol.format_events events);
- |  [%expect
- |    {|
- |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
--|    BBO AAPL bid=- ask=$150.00 x100
-+|    BBO AAPL bid=- ask=$150.00 x1
- |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
--|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) BUY resting=1(Bob)
-+|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)1 BUY resting=1(Bob)1
- |    TRADE AAPL $150.00 x100
- |    BBO AAPL bid=- ask=-
+!|    FILL fill_id=2 TSLA $200.00 x100 aggressor=4(Alice)50 BUY resting=2(Charlie)48
  |    |}]
  |;;
 File "lib/gateway/test/test_end_to_end.ml", line 1, characters 0-0:
@@ -509,8 +727,7 @@ File "lib/gateway/test/test_end_to_end.ml", line 29, characters 0-1:
  |        bob
  |        (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
  |    in
--|    [%expect {| [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
-+|    [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
+!|    [%expect {| [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
  |    (* Alice places a buy — should cross *)
  |    let%bind () = rpc_submit alice (Harness.buy ~price_cents:15000 ()) in
  |    [%expect
@@ -540,8 +757,7 @@ File "lib/gateway/test/test_end_to_end.ml", line 29, characters 0-1:
  |           ~participant:Harness.bob
  |           ())
  |    in
--|    [%expect {| [for Bob] ACCEPTED id=1 AAPL SELL 50@$150.00 DAY |}];
-+|    [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 50@$150.00 DAY |}];
+!|    [%expect {| [for Bob] ACCEPTED id=1 AAPL SELL 50@$150.00 DAY |}];
  |    (* Charlie posts a sell at a higher price *)
  |    let%bind () =
  |      rpc_submit
@@ -552,8 +768,7 @@ File "lib/gateway/test/test_end_to_end.ml", line 29, characters 0-1:
  |           ~participant:Harness.charlie
  |           ())
  |    in
--|    [%expect {| [for Charlie] ACCEPTED id=2 AAPL SELL 50@$150.10 DAY |}];
-+|    [%expect {| [Charlie] ACCEPTED id=2 AAPL SELL 50@$150.10 DAY |}];
+!|    [%expect {| [for Charlie] ACCEPTED id=2 AAPL SELL 50@$150.10 DAY |}];
  |    (* Alice buys 80 — should sweep through both *)
  |    let%bind () =
  |      rpc_submit alice (Harness.buy ~price_cents:15010 ~size:80 ())
@@ -615,9 +830,8 @@ File "lib/gateway/test/test_end_to_end.ml", line 126, characters 0-1:
  |    in
  |    [%expect
  |      {|
--|      [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+!|      [for Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
 -|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100
-+|      [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
 +|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x1
  |      |}];
  |    (* Cross it with a buy *)
@@ -663,8 +877,7 @@ File "lib/gateway/test/test_end_to_end.ml", line 171, characters 0-1:
  |           ~participant:Harness.bob
  |           ())
  |    in
--|    [%expect {| [for Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
-+|    [%expect {| [Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
+!|    [%expect {| [for Bob] ACCEPTED id=1 TSLA SELL 100@$200.00 DAY |}];
  |    (* Post on AAPL — subscriber SHOULD see this *)
  |    let%bind () =
  |      rpc_submit
@@ -673,9 +886,8 @@ File "lib/gateway/test/test_end_to_end.ml", line 171, characters 0-1:
  |    in
  |    [%expect
  |      {|
--|      [for Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY
+!|      [for Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY
 -|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x100
-+|      [Bob] ACCEPTED id=2 AAPL SELL 100@$150.00 DAY
 +|      [MD Subscriber] BBO AAPL bid=- ask=$150.00 x1
  |      |}];
  |    return ())
@@ -743,8 +955,7 @@ File "lib/gateway/test/test_end_to_end.ml", line 257, characters 0-1:
 -|      [for Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
 -|      [for Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
  |      [AUDIT] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
--|      [AUDIT] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) BUY resting=1(Bob)
-+|      [AUDIT] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)27 BUY resting=1(Bob)25
+!|      [AUDIT] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice)27 BUY resting=1(Bob)25
  |      [AUDIT] TRADE AAPL $150.00 x100
  |      [AUDIT] BBO AAPL bid=- ask=-
 +|      [Alice] ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
@@ -766,51 +977,32 @@ File "lib/gateway/test/test_end_to_end.ml", line 257, characters 0-1:
  |  [%expect {| (initial (count 0)) |}];
  |  let reader_a = Dispatcher.subscribe_audit dispatcher in
  |  let reader_b = Dispatcher.subscribe_audit dispatcher in
-File "app/market_maker/test/test_market_maker.ml", line 1, characters 0-0:
------- app/market_maker/test/test_market_maker.ml
-++++++ app/market_maker/test/test_market_maker.ml.corrected
-File "app/market_maker/test/test_market_maker.ml", line 28, characters 0-1:
- |  ; symbol = Harness.aapl
- |  ; fair_value_cents = 15000
- |  ; half_spread_cents = 10
- |  ; size_per_level = 100
- |  ; num_levels = 3
- |  ; inventory_skew_cents_per_share = 1
- |  }
+File "lib/gateway/test/test_protocol.ml", line 1, characters 0-0:
+------ lib/gateway/test/test_protocol.ml
+++++++ lib/gateway/test/test_protocol.ml.corrected
+File "lib/gateway/test/test_protocol.ml", line 121, characters 0-1:
+ |  (* Parse a buy command from text and submit it *)
+ |  let request =
+ |    match
+ |      Exchange_command.parse
+ |        ~default_participant:Harness.alice
+ |        "BUY 1 AAPL 100 150.00"
+ |    with
+ |    | Ok (Exchange_command.Submit request) -> request
+ |    | Ok _ -> failwith "expected a Submit command"
+ |    | Error err -> Error.raise err
+ |  in
+ |  let events = Matching_engine.submit (Harness.engine t) request in
+ |  print_endline (Protocol.format_events events);
+ |  [%expect
+ |    {|
+ |    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+-|    BBO AAPL bid=- ask=$150.00 x100
++|    BBO AAPL bid=- ask=$150.00 x1
+ |    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+!|    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice)1 BUY resting=1(Bob)1
+ |    TRADE AAPL $150.00 x100
+ |    BBO AAPL bid=- ask=-
+ |    |}]
  |;;
- |
- |let%expect_test "seed_book: places symmetric bids and asks around fair value"
- |  =
- |  with_server ~symbols:[ Harness.aapl ] (fun ~server:_ ~port ->
- |    let%bind mm = connect_as ~port Harness.market_maker in
- |    let%bind () = Market_maker.seed_book default_config (connection mm) in
- |    [%expect
- |      {|
--|      [for MarketMaker] ACCEPTED id=1 AAPL BUY 100@$149.90 DAY
--|      [for MarketMaker] ACCEPTED id=2 AAPL SELL 100@$150.10 DAY
--|      [for MarketMaker] ACCEPTED id=3 AAPL BUY 100@$149.89 DAY
--|      [for MarketMaker] ACCEPTED id=4 AAPL SELL 100@$150.11 DAY
--|      [for MarketMaker] ACCEPTED id=5 AAPL BUY 100@$149.88 DAY
--|      [for MarketMaker] ACCEPTED id=6 AAPL SELL 100@$150.12 DAY
-+|      [MarketMaker] ACCEPTED id=1 AAPL BUY 100@$149.90 DAY
-+|      [MarketMaker] ACCEPTED id=2 AAPL SELL 100@$150.10 DAY
-+|      [MarketMaker] ACCEPTED id=3 AAPL BUY 100@$149.89 DAY
-+|      [MarketMaker] ACCEPTED id=4 AAPL SELL 100@$150.11 DAY
-+|      [MarketMaker] ACCEPTED id=5 AAPL BUY 100@$149.88 DAY
-+|      [MarketMaker] ACCEPTED id=6 AAPL SELL 100@$150.12 DAY
- |      |}];
- |    return ())
- |;;
- |
- |(* --- Unit tests for the dynamic market maker (exercises 2a-2c) ---
- |
- |   These drive [Market_maker.make] directly with recording [submit] / [cancel]
- |   closures, so we can push a controlled sequence of session-feed events at the
- |   bot and inspect exactly what it tracks and what it sends. No live server,
- |   fully deterministic. *)
- |
- |type harness =
- |  { submitted : Order.Request.t list ref
- |  ; cancelled : Client_order_id.t list ref
- |  ; outstanding : int Client_order_id.Table.t
- |  ; inventory : int Symbol.Table.t
+ubuntu@ip-172-31-20-20:~/jsip-exchange$ dune runtest 
