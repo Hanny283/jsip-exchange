@@ -6,8 +6,10 @@
   jsip_fundamental
   jsip_bot_runtime
   jsip_bots
+  jsip_market_maker
   core
   async
+  expect_test_helpers_core
   expect_test_helpers_async)
  (preprocess
   (pps ppx_jane)))
