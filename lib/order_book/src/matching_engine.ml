@@ -77,74 +77,83 @@ let rec match_loop ~book ~order ~fill_id =
 ;;
 
 let submit t (request : Order.Request.t) =
-  match Map.find t.books request.symbol with
-  | None ->
-    [ Exchange_event.Order_reject { request; reason = "unknown symbol" } ]
-  | Some book ->
-    let client_orders =
-      Hashtbl.find_or_add
-        t.client_orders
-        request.participant
-        ~default:(fun () -> Client_order_id.Table.create ())
-    in
-    (match Hashtbl.find client_orders request.client_order_id with
-     | Some _ ->
-       (* The client has already used this id; reject rather than accept a
-          second order under the same handle. *)
-       [ Exchange_event.Order_reject
-           { request; reason = "duplicate client order id" }
-       ]
-     | None ->
-       let order_id = Order_id.Generator.next t.order_id_gen in
-       let order = Order.create request ~order_id in
-       Hashtbl.set client_orders ~key:request.client_order_id ~data:order;
-       let accepted = Exchange_event.Order_accept { order_id; request } in
-       (* Snapshot BBO before matching so we can detect changes. *)
-       let bbo_before = Order_book.best_bid_offer book in
-       (* Match *)
-       let fill_events, next_fill_id, self_trade =
-         match_loop ~book ~order ~fill_id:t.next_fill_id
-       in
-       t.next_fill_id <- next_fill_id;
-       (* Post-match: rest on book or cancel unfilled remainder. *)
-       let cancel_remainder reason =
-         Exchange_event.Order_cancel
-           { order_id
-           ; participant = Order.participant order
-           ; symbol = Order.symbol order
-           ; remaining_size = Order.remaining_size order
-           ; reason
-           ; client_order_id = request.client_order_id
-           }
-       in
-       let post_events =
-         if Size.( > ) (Order.remaining_size order) Size.zero
-         then (
-           match self_trade with
-           | `Would_self_trade ->
-             (* The next match would have been against the participant's own
-                resting order; cancel the aggressor instead of letting it
-                trade or rest (the resting order is untouched). *)
-             [ cancel_remainder Self_trade_prevention ]
-           | `No_self_trade ->
-             (match Order.time_in_force order with
-              | Day ->
-                Order_book.add book order;
-                []
-              | Ioc -> [ cancel_remainder Ioc_remainder ]))
-         else []
-       in
-       (* Emit BBO update if the best bid or ask changed. *)
-       let bbo_after = Order_book.best_bid_offer book in
-       let bbo_events =
-         if Bbo.equal bbo_before bbo_after
-         then []
-         else
-           [ Exchange_event.Best_bid_offer_update
-               { symbol = Order.symbol order; bbo = bbo_after }
-           ]
-       in
-       List.concat [ [ accepted ]; fill_events; post_events; bbo_events ])
+  (* Reject nonsensical prices up front (a cheap, request-only check) so no
+     order can rest at a non-positive price and corrupt the book — otherwise
+     a bot whose price arithmetic runs negative (e.g. a market maker skewing
+     hard on a large inventory) plants a negative best bid. *)
+  if Price.( <= ) request.price Price.zero
+  then
+    [ Exchange_event.Order_reject { request; reason = "non-positive price" }
+    ]
+  else (
+    match Map.find t.books request.symbol with
+    | None ->
+      [ Exchange_event.Order_reject { request; reason = "unknown symbol" } ]
+    | Some book ->
+      let client_orders =
+        Hashtbl.find_or_add
+          t.client_orders
+          request.participant
+          ~default:(fun () -> Client_order_id.Table.create ())
+      in
+      (match Hashtbl.find client_orders request.client_order_id with
+       | Some _ ->
+         (* The client has already used this id; reject rather than accept a
+            second order under the same handle. *)
+         [ Exchange_event.Order_reject
+             { request; reason = "duplicate client order id" }
+         ]
+       | None ->
+         let order_id = Order_id.Generator.next t.order_id_gen in
+         let order = Order.create request ~order_id in
+         Hashtbl.set client_orders ~key:request.client_order_id ~data:order;
+         let accepted = Exchange_event.Order_accept { order_id; request } in
+         (* Snapshot BBO before matching so we can detect changes. *)
+         let bbo_before = Order_book.best_bid_offer book in
+         (* Match *)
+         let fill_events, next_fill_id, self_trade =
+           match_loop ~book ~order ~fill_id:t.next_fill_id
+         in
+         t.next_fill_id <- next_fill_id;
+         (* Post-match: rest on book or cancel unfilled remainder. *)
+         let cancel_remainder reason =
+           Exchange_event.Order_cancel
+             { order_id
+             ; participant = Order.participant order
+             ; symbol = Order.symbol order
+             ; remaining_size = Order.remaining_size order
+             ; reason
+             ; client_order_id = request.client_order_id
+             }
+         in
+         let post_events =
+           if Size.( > ) (Order.remaining_size order) Size.zero
+           then (
+             match self_trade with
+             | `Would_self_trade ->
+               (* The next match would have been against the participant's
+                  own resting order; cancel the aggressor instead of letting
+                  it trade or rest (the resting order is untouched). *)
+               [ cancel_remainder Self_trade_prevention ]
+             | `No_self_trade ->
+               (match Order.time_in_force order with
+                | Day ->
+                  Order_book.add book order;
+                  []
+                | Ioc -> [ cancel_remainder Ioc_remainder ]))
+           else []
+         in
+         (* Emit BBO update if the best bid or ask changed. *)
+         let bbo_after = Order_book.best_bid_offer book in
+         let bbo_events =
+           if Bbo.equal bbo_before bbo_after
+           then []
+           else
+             [ Exchange_event.Best_bid_offer_update
+                 { symbol = Order.symbol order; bbo = bbo_after }
+             ]
+         in
+         List.concat [ [ accepted ]; fill_events; post_events; bbo_events ]))
 ;;
 
 let cancel t ~participant ~client_order_id =

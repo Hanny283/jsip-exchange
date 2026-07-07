@@ -86,6 +86,12 @@ let quote_targets (config : Config.t) context symbol (info : symbol_info) =
   skewed_fair, info.half_spread_cents
 ;;
 
+(* One tick: the lowest price an order may rest at. A large inventory skews
+   [skewed_fair] far enough that a raw quote can go to or below zero, which
+   the exchange now rejects — so floor both sides here rather than emit
+   orders that will bounce. *)
+let min_price_cents = 1
+
 let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread
   =
   Deferred.List.iter
@@ -93,13 +99,15 @@ let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread
     (List.init config.num_levels ~f:Fn.id)
     ~f:(fun level ->
       let offset = half_spread + level in
+      let bid_cents = Int.max min_price_cents (skewed_fair - offset) in
+      let ask_cents = Int.max min_price_cents (skewed_fair + offset) in
       let%bind _ =
         Context.submit
           context
           ({ symbol
            ; participant = Context.participant context
            ; side = Buy
-           ; price = Price.of_int_cents (skewed_fair - offset)
+           ; price = Price.of_int_cents bid_cents
            ; size = Size.of_int config.size_per_level
            ; time_in_force = Day
            ; client_order_id =
@@ -112,7 +120,7 @@ let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread
           ({ symbol
            ; participant = Context.participant context
            ; side = Sell
-           ; price = Price.of_int_cents (skewed_fair + offset)
+           ; price = Price.of_int_cents ask_cents
            ; size = Size.of_int config.size_per_level
            ; time_in_force = Day
            ; client_order_id =
