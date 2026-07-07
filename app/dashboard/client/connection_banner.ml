@@ -30,14 +30,19 @@ let status_chip (status : Samples_subscription.Status.t) =
     |}
 ;;
 
-let view status =
+let view ~reset status =
   {%html|
     <header %{Styles.banner}>
       <div %{Styles.banner_left}>
         <span %{Styles.banner_product}>JSIP Exchange</span>
         <span %{Styles.banner_note}>operations dashboard</span>
       </div>
-      %{status_chip status}
+      <div %{Styles.banner_right}>
+        <button %{Styles.reset_button} on_click=%{fun _ -> reset}>
+          Reset
+        </button>
+        %{status_chip status}
+      </div>
     </header>
   |}
 ;;

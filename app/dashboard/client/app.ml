@@ -3,7 +3,7 @@ open Bonsai_web
 open Bonsai.Let_syntax
 
 let app (local_ graph) =
-  let state, status = Samples_subscription.component graph in
+  let state, status, reset = Samples_subscription.component graph in
   (* Each pane derives its view record as its own [Bonsai.t] behind an
      equality cutoff: the sample window changes every second, but a pane's
      vdom is rebuilt only when the numbers it renders actually changed (e.g.
@@ -57,8 +57,8 @@ let app (local_ graph) =
   in
   let depth = Depth_pane.component ~state graph in
   let banner =
-    let%arr status in
-    Connection_banner.view status
+    let%arr status and reset in
+    Connection_banner.view ~reset status
   in
   let controls = Scenario_controls.component graph in
   let%arr banner

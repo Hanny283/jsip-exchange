@@ -71,6 +71,12 @@ val banner_product : Vdom.Attr.t
 (** Muted subtitle next to the product name. *)
 val banner_note : Vdom.Attr.t
 
+(** Right cluster of the banner: the Reset button and the status chip. *)
+val banner_right : Vdom.Attr.t
+
+(** The Reset button in the banner. *)
+val reset_button : Vdom.Attr.t
+
 (** Pill wrapping the status dot + label. *)
 val status_chip : Vdom.Attr.t
 

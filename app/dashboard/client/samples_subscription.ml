@@ -12,7 +12,9 @@ module Status = struct
 end
 
 module Action = struct
-  type t = Response_received of Recent_samples.Response.t
+  type t =
+    | Response_received of Recent_samples.Response.t
+    | Reset (** Clear the window and cursor; the next poll re-syncs fresh. *)
   [@@deriving sexp_of]
 end
 
@@ -26,7 +28,8 @@ let component (local_ graph) =
       ~apply_action:(fun _ctx model (action : Action.t) ->
         match action with
         | Response_received response ->
-          Dashboard_state.handle_response model response)
+          Dashboard_state.handle_response model response
+        | Reset -> Dashboard_state.create ~window)
       graph
   in
   let query =
@@ -60,5 +63,9 @@ let component (local_ graph) =
     | Ok (_ : Recent_samples.Response.t) -> Status.Connected
     | Error { error; last_ok_response = _ } -> Status.Failing error
   in
-  state, status
+  let reset =
+    let%arr inject in
+    inject Action.Reset
+  in
+  state, status, reset
 ;;

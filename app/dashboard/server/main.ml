@@ -61,6 +61,11 @@ let main ~port ~exchange_host ~exchange_port ~js_path ~runner_exe () =
     (Exchange_feed.run
        ~host:exchange_host
        ~port:exchange_port
+       ~on_connect:(fun () ->
+         (* New exchange run: start its history from an empty buffer so its
+            snapshot seqs (which restart at 1) never mix with the previous
+            scenario's. *)
+         buffer := Sample_buffer.create ~capacity:sample_buffer_capacity)
        ~on_sample:(fun sample -> buffer := Sample_buffer.add !buffer sample));
   let scenario_manager =
     Scenario_manager.create ~exchange_port ~runner_exe

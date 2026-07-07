@@ -38,7 +38,11 @@ module Status : sig
 end
 
 (** [component graph] starts the once-a-second poll and returns the
-    continuously updated model together with the connection status. *)
+    continuously updated model, the connection status, and a [reset] effect.
+
+    Running [reset] clears the window and the [after_seq] cursor, so the next
+    poll re-syncs from the server's current buffer — a manual escape hatch
+    for the rare case where the view is stuck on stale samples. *)
 val component
   :  local_ Bonsai.graph
-  -> Dashboard_state.t Bonsai.t * Status.t Bonsai.t
+  -> Dashboard_state.t Bonsai.t * Status.t Bonsai.t * unit Effect.t Bonsai.t

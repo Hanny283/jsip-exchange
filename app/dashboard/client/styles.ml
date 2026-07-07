@@ -78,6 +78,26 @@ let banner_note =
   style [ [%string "color: %{muted_hex}"]; "font-size: 12px" ]
 ;;
 
+let banner_right =
+  style [ "display: flex"; "align-items: center"; "gap: 12px" ]
+;;
+
+(* Clears the rolling window and re-syncs the feed; a low-key control that
+   should not compete with the status chip beside it. *)
+let reset_button =
+  style
+    [ "padding: 5px 12px"
+    ; "border-radius: 6px"
+    ; sans_font
+    ; "font-size: 12px"
+    ; "font-weight: 600"
+    ; "background: transparent"
+    ; [%string "color: %{muted_hex}"]
+    ; [%string "border: 1px solid %{border_hex}"]
+    ; "cursor: pointer"
+    ]
+;;
+
 let status_chip =
   style
     [ "display: inline-flex"
