@@ -1,1 +1,4 @@
 _build
+
+# Claude Code worktree scratch spaces (other sessions)
+.claude/worktrees/
