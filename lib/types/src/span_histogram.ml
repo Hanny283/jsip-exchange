@@ -7,9 +7,16 @@ let overflow_bucket = num_buckets - 1
    a power-of-two multiple of it. *)
 let base_boundary_ns = 1000
 
+(* Boundaries are computed with [scale_int] (Int63 arithmetic under the
+   hood) rather than [lsl] on a plain [int]: js_of_ocaml's native ints are
+   32-bit, so [1000 lsl i] wraps for i >= 22 in the browser, where clients
+   deserialize this type to label buckets. [1 lsl i] itself stays well
+   within 32 bits (i <= 24). *)
 let bucket_boundaries =
   Array.init (num_buckets - 1) ~f:(fun i ->
-    Time_ns.Span.of_int_ns (base_boundary_ns lsl i))
+    Time_ns.Span.scale_int
+      (Time_ns.Span.of_int_ns base_boundary_ns)
+      (1 lsl i))
 ;;
 
 type t = { counts : int array } [@@deriving bin_io, equal]
@@ -40,12 +47,17 @@ let sexp_of_t t =
 
 let create () = { counts = Array.create ~len:num_buckets 0 }
 
+(* Int63 throughout: [Time_ns.Span.to_int_ns] raises on 32-bit platforms
+   (js_of_ocaml), and span magnitudes can exceed a 32-bit [int] anyway. *)
 let bucket_index span =
-  let ns = Time_ns.Span.to_int_ns span in
-  match ns < base_boundary_ns with
+  let ns = Time_ns.Span.to_int63_ns span in
+  let base = Int63.of_int base_boundary_ns in
+  match Int63.( < ) ns base with
   | true -> 0
   | false ->
-    Int.min overflow_bucket (Int.floor_log2 (ns / base_boundary_ns) + 1)
+    Int.min
+      overflow_bucket
+      (Int63.to_int_exn (Int63.floor_log2 (Int63.( / ) ns base)) + 1)
 ;;
 
 let record t span =
