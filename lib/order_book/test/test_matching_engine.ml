@@ -567,3 +567,40 @@ let%expect_test "cancel: a fully filled order can no longer be cancelled" =
     CANCEL: Bob 8080 order already filled or cancelled
     |}]
 ;;
+
+(* ================================================================ *)
+(* Self-trade prevention *)
+(* ================================================================ *)
+
+let%expect_test "self-trade: incoming order cancelled, resting order stays" =
+  let t = Harness.create () in
+  submit_ t (Harness.sell ~price_cents:15000 ());
+  (* Alice's buy would match her own resting sell: no fill, and the
+     aggressor is cancelled rather than rested. *)
+  submit_ t (Harness.buy ~price_cents:15000 ());
+  Harness.print_book t Harness.aapl;
+  [%expect {| |}]
+;;
+
+let%expect_test "self-trade: fills against others stand, remainder cancelled"
+  =
+  let t = Harness.create () in
+  submit_
+    t
+    (Harness.sell ~price_cents:15000 ~size:40 ~participant:Harness.bob ());
+  submit_ t (Harness.sell ~price_cents:15000 ~size:60 ());
+  (* Alice's buy fills Bob's earlier sell, then stops when the next match
+     would be her own order; the 60-share remainder is cancelled and her
+     resting sell is untouched. *)
+  submit_ t (Harness.buy ~price_cents:15000 ~size:100 ());
+  Harness.print_book t Harness.aapl;
+  [%expect {| |}]
+;;
+
+let%expect_test "self-trade: IOC remainder cancelled with self-trade reason"
+  =
+  let t = Harness.create () in
+  submit_ t (Harness.sell ~price_cents:15000 ());
+  submit_ t (Harness.buy ~price_cents:15000 ~time_in_force:Ioc ());
+  [%expect {| |}]
+;;
