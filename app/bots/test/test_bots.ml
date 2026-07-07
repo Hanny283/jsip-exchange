@@ -7,7 +7,6 @@ open Jsip_fundamental
 open Jsip_bot_runtime
 open! Jsip_bots
 
-
 let generator = Client_order_id.Generator.create ()
 let aapl = Symbol.of_string "AAPL"
 let alice = Participant.of_string "Alice"
