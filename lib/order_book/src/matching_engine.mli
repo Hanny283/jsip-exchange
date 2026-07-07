@@ -18,7 +18,14 @@ val create : Symbol.t list -> t
 
 (** Submit a new order request. Returns the list of exchange events produced:
     an acceptance or rejection, followed by any fills, and possibly a
-    cancellation of unfilled remainder (for IOC orders).
+    cancellation of unfilled remainder (for IOC orders, or when the order
+    would have self-traded).
+
+    Self-trade prevention: an order never fills against a resting order from
+    the same participant. If the next candidate match belongs to the
+    aggressor, matching stops and the aggressor's remainder is cancelled with
+    {!Cancel_reason.Self_trade_prevention}; the resting order stays on the
+    book. Fills already executed against other participants stand.
 
     The request's [client_order_id] must be unused by its participant; a
     repeat id produces an [Order_reject] instead of an acceptance. Accepted

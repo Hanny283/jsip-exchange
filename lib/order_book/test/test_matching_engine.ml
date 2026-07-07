@@ -268,7 +268,11 @@ let%expect_test "BBO update emitted when order rests on book" =
 
 let%expect_test "BBO update: reflects new best after fill" =
   let t = Harness.create () in
-  let events = Harness.submit_quiet t (Harness.sell ~price_cents:15000 ()) in
+  let events =
+    Harness.submit_quiet
+      t
+      (Harness.sell ~price_cents:15000 ~participant:Harness.bob ())
+  in
   Harness.print_events ~show:show_bbo events;
   [%expect {| BBO AAPL bid=- ask=$150.00 x100 |}];
   let events = Harness.submit_quiet t (Harness.buy ~price_cents:15000 ()) in
@@ -566,5 +570,68 @@ let%expect_test "cancel: a fully filled order can no longer be cancelled" =
     ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
     FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=57 BUY resting=1(Bob) client_id=8080
     CANCEL: Bob 8080 order already filled or cancelled
+    |}]
+;;
+
+(* ================================================================ *)
+(* Self-trade prevention *)
+(* ================================================================ *)
+
+let%expect_test "self-trade: incoming order cancelled, resting order stays" =
+  let t = Harness.create () in
+  submit_ t (Harness.sell ~price_cents:15000 ());
+  (* Alice's buy would match her own resting sell: no fill, and the aggressor
+     is cancelled rather than rested. *)
+  submit_ t (Harness.buy ~price_cents:15000 ());
+  Harness.print_book t Harness.aapl;
+  [%expect
+    {|
+    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+    CANCELLED client_id=59 id=2 AAPL remaining=100 reason=SELF_TRADE_PREVENTION
+    === AAPL ===
+      BIDS: (empty)
+      ASKS:
+        $150.00 x100
+      BBO: - / $150.00 x100
+    |}]
+;;
+
+let%expect_test "self-trade: fills against others stand, remainder cancelled"
+  =
+  let t = Harness.create () in
+  submit_
+    t
+    (Harness.sell ~price_cents:15000 ~size:40 ~participant:Harness.bob ());
+  submit_ t (Harness.sell ~price_cents:15000 ~size:60 ());
+  (* Alice's buy fills Bob's earlier sell, then stops when the next match
+     would be her own order; the 60-share remainder is cancelled and her
+     resting sell is untouched. *)
+  submit_ t (Harness.buy ~price_cents:15000 ~size:100 ());
+  Harness.print_book t Harness.aapl;
+  [%expect
+    {|
+    ACCEPTED id=1 AAPL SELL 40@$150.00 DAY
+    ACCEPTED id=2 AAPL SELL 60@$150.00 DAY
+    ACCEPTED id=3 AAPL BUY 100@$150.00 DAY
+    FILL fill_id=1 AAPL $150.00 x40 aggressor=3(Alice) client_id=62 BUY resting=1(Bob) client_id=60
+    CANCELLED client_id=62 id=3 AAPL remaining=60 reason=SELF_TRADE_PREVENTION
+    === AAPL ===
+      BIDS: (empty)
+      ASKS:
+        $150.00 x60
+      BBO: - / $150.00 x60
+    |}]
+;;
+
+let%expect_test "self-trade: IOC remainder cancelled with self-trade reason" =
+  let t = Harness.create () in
+  submit_ t (Harness.sell ~price_cents:15000 ());
+  submit_ t (Harness.buy ~price_cents:15000 ~time_in_force:Ioc ());
+  [%expect
+    {|
+    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
+    ACCEPTED id=2 AAPL BUY 100@$150.00 IOC
+    CANCELLED client_id=64 id=2 AAPL remaining=100 reason=SELF_TRADE_PREVENTION
     |}]
 ;;

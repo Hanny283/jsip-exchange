@@ -25,13 +25,21 @@ let book t symbol = Map.find t.books symbol
 
 (** Run the matching loop: repeatedly find a compatible resting order and
     fill against it. Returns the list of Fill and Trade_report events
-    produced, and the next fill_id to use. *)
+    produced, the next fill_id to use, and whether matching stopped because
+    the next fill would have been against the aggressor's own resting order
+    (in which case the caller must cancel the aggressor's remainder rather
+    than let it trade or rest). *)
 let rec match_loop ~book ~order ~fill_id =
   if Size.( <= ) (Order.remaining_size order) Size.zero
-  then [], fill_id
+  then [], fill_id, `No_self_trade
   else (
     match Order_book.find_match book order with
-    | None -> [], fill_id
+    | None -> [], fill_id, `No_self_trade
+    | Some resting
+      when Participant.equal
+             (Order.participant resting)
+             (Order.participant order) ->
+      [], fill_id, `Would_self_trade
     | Some resting ->
       let fill_size =
         Size.min (Order.remaining_size order) (Order.remaining_size resting)
@@ -62,10 +70,10 @@ let rec match_loop ~book ~order ~fill_id =
           ; size = fill_size
           }
       in
-      let remaining_events, next_fill_id =
+      let remaining_events, next_fill_id, self_trade =
         match_loop ~book ~order ~fill_id:(fill_id + 1)
       in
-      fill_event :: trade_event :: remaining_events, next_fill_id)
+      fill_event :: trade_event :: remaining_events, next_fill_id, self_trade)
 ;;
 
 let submit t (request : Order.Request.t) =
@@ -94,28 +102,36 @@ let submit t (request : Order.Request.t) =
        (* Snapshot BBO before matching so we can detect changes. *)
        let bbo_before = Order_book.best_bid_offer book in
        (* Match *)
-       let fill_events, next_fill_id =
+       let fill_events, next_fill_id, self_trade =
          match_loop ~book ~order ~fill_id:t.next_fill_id
        in
        t.next_fill_id <- next_fill_id;
        (* Post-match: rest on book or cancel unfilled remainder. *)
+       let cancel_remainder reason =
+         Exchange_event.Order_cancel
+           { order_id
+           ; participant = Order.participant order
+           ; symbol = Order.symbol order
+           ; remaining_size = Order.remaining_size order
+           ; reason
+           ; client_order_id = request.client_order_id
+           }
+       in
        let post_events =
          if Size.( > ) (Order.remaining_size order) Size.zero
          then (
-           match Order.time_in_force order with
-           | Day ->
-             Order_book.add book order;
-             []
-           | Ioc ->
-             [ Exchange_event.Order_cancel
-                 { order_id
-                 ; participant = Order.participant order
-                 ; symbol = Order.symbol order
-                 ; remaining_size = Order.remaining_size order
-                 ; reason = Ioc_remainder
-                 ; client_order_id = request.client_order_id
-                 }
-             ])
+           match self_trade with
+           | `Would_self_trade ->
+             (* The next match would have been against the participant's own
+                resting order; cancel the aggressor instead of letting it
+                trade or rest (the resting order is untouched). *)
+             [ cancel_remainder Self_trade_prevention ]
+           | `No_self_trade ->
+             (match Order.time_in_force order with
+              | Day ->
+                Order_book.add book order;
+                []
+              | Ioc -> [ cancel_remainder Ioc_remainder ]))
          else []
        in
        (* Emit BBO update if the best bid or ask changed. *)
