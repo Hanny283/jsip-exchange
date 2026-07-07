@@ -42,9 +42,7 @@ let empty =
 
    The shape mirrors the unrealized formula
    [shares * (reference_price - average_entry_price)] — here the trade price
-   plays the role the reference price plays there.
-
-   TODO(human): implement the realized-P&L rule. *)
+   plays the role the reference price plays there. *)
 let realized_cents_of_reduction
   ~shares
   ~average_entry_price

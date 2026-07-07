@@ -55,9 +55,8 @@ let%expect_test "events pile up in the feed pipe while the consumer is busy" =
   (match Pipe.read_now reader with
    | `Ok event -> don't_wait_for (Slow_consumer.on_event config ctx event)
    | `Eof | `Nothing_available -> ());
-  (* TODO(human): use [Pipe.read_now'] to snapshot how many events are still
-     buffered in [reader], and [printf] that count. This is the backlog that
-     would grow without bound in a real run. *)
+  (* Snapshot how many events are still buffered in [reader]. This is the
+     backlog that would grow without bound in a real run. *)
   (match Pipe.read_now' reader with
    | `Ok q -> printf "%d" (Queue.length q)
    | `Eof | `Nothing_available -> printf "0");
