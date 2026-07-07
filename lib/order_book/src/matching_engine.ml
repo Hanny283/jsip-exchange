@@ -38,7 +38,8 @@ let rec match_loop ~book ~order ~fill_id =
     | Some resting
       when Participant.equal
              (Order.participant resting)
-             (Order.participant order) -> [], fill_id, `Would_self_trade
+             (Order.participant order) ->
+      [], fill_id, `Would_self_trade
     | Some resting ->
       let fill_size =
         Size.min (Order.remaining_size order) (Order.remaining_size resting)
