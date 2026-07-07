@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783436398848,
+  "lastUpdate": 1783441926883,
   "repoUrl": "https://github.com/Hanny283/jsip-exchange",
   "entries": {
     "Order book benchmark": [
@@ -3575,6 +3575,155 @@ window.BENCHMARK_DATA = {
           {
             "name": "find_match_alloc (n=100)",
             "value": 55.71196294517027,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanselcarmona5@gmail.com",
+            "name": "Hansel",
+            "username": "Hanny283"
+          },
+          "committer": {
+            "email": "hanselcarmona5@gmail.com",
+            "name": "Hansel",
+            "username": "Hanny283"
+          },
+          "distinct": true,
+          "id": "f6b83557a48f2a9ee5e34c171f404c20a32c75b0",
+          "message": "Add the monitoring dashboard (part-3 exercise 2b piece 2)\n\napp/dashboard, three parts per the bonsai-web skill's layout:\n\n- protocol/: dashboard-recent-samples RPC — cursor query {after_seq},\n  response {samples; latest_seq} (regression signals a restart). Built\n  on async_rpc_kernel only, so it links under js_of_ocaml.\n- server/: native bridge. Subscribes to exchange_stats_rpc over TCP\n  (1s reconnect loop), folds snapshots into a pure 300-sample ring\n  buffer, and serves index.html + main.bc.js + the websocket RPC on one\n  port via Rpc_websocket.Rpc.serve. dune copies the client bundle next\n  to the server binary so the -js default just works under dune exec.\n- client/: bonsai_web (Cont API) app. Pure core dashboard_state (its\n  own core-only library so tests link natively) folds samples into a\n  120s rolling window and derives per-pane view records (window-merged\n  Span_histogram percentiles, occupancy trends, participant rates,\n  book depth, loop gaps); Rpc_effect.Rpc.poll drives the cursor loop\n  at 1/s; panes are ppx_html views with inline-SVG sparklines and\n  histogram bars, per-pane Bonsai cutoffs, and empty/loading states.\n\nTests: protocol shape digest, sample-buffer ring semantics, and the\ndashboard_state fold/eviction/restart + every view derivation.\nVerified live: calm-day scenario + dashboard server booted; page,\nbundle, 404s, and the cursor protocol checked over a real websocket.\n\nRun it:\n  dune build\n  dune exec app/scenario_runner/bin/main.exe -- -scenario calm-day -port 12345 -seed 0\n  dune exec app/dashboard/server/main.exe -- -port 8080\n  open http://localhost:8080\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-07T16:22:17Z",
+          "tree_id": "21408da23bbfb386321dfa5747c3126ae319bfa4",
+          "url": "https://github.com/Hanny283/jsip-exchange/commit/f6b83557a48f2a9ee5e34c171f404c20a32c75b0"
+        },
+        "date": 1783441925661,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "find_match (n=10)",
+            "value": 41.23245105299695,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=50)",
+            "value": 49.49217859945527,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=100)",
+            "value": 49.48751221922725,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=500)",
+            "value": 63.56700785922077,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=10)",
+            "value": 37.83547970621529,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=50)",
+            "value": 46.290945236840656,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=100)",
+            "value": 49.93817116409283,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=500)",
+            "value": 64.3886601485458,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=10)",
+            "value": 42.37003882879983,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=50)",
+            "value": 50.262851379106365,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=100)",
+            "value": 60.12906525021949,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=500)",
+            "value": 77.2426238522775,
+            "unit": "ns"
+          },
+          {
+            "name": "add+remove (n=100)",
+            "value": 527.3817156164488,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=10)",
+            "value": 133.02035345647866,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=50)",
+            "value": 135.08542823701433,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=100)",
+            "value": 136.81903953064153,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=500)",
+            "value": 137.25368689339908,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=10)",
+            "value": 69.27128287015653,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=50)",
+            "value": 68.34463956961365,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=100)",
+            "value": 68.14119081864857,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=500)",
+            "value": 68.13444351846002,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_10_levels",
+            "value": 6510.396511679144,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_50_levels",
+            "value": 39336.406097489016,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_100_levels",
+            "value": 85555.87358186179,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_alloc (n=100)",
+            "value": 60.08482133979349,
             "unit": "ns"
           }
         ]
