@@ -2,31 +2,27 @@ open! Core
 open! Async
 open Jsip_types
 
-(** A dynamic, multi-symbol market maker on the bot-runtime interface.
-
-    For each configured symbol it quotes a ladder of bids and asks around the
-    symbol's fundamental value (read from the oracle via
-    [Context.fundamental]), skews the ladder by its inventory, and re-quotes
-    as it gets filled.
-
-    Per-symbol state -- inventory, an adaptive half-spread, and the set of
-    resting orders -- is tracked internally and updated from the events the
-    bot receives. When the observed market spread blows out past
-    [max_spread_cents] (e.g. a whale has swept a side of the book), the maker
-    stands aside rather than quoting into the dislocation. *)
+(** A dynamic, multi-symbol market maker: for each symbol it quotes a ladder
+    of bids and asks around the oracle's fundamental, skews it by inventory,
+    and re-quotes as it fills. It adapts its half-spread toward the observed
+    market and stands aside when the spread blows out past [max_spread_cents]
+    (e.g. a whale swept a side of the book). *)
 module Config : sig
   type t
 
-  (** Build a market-maker config. Per-symbol state is initialised empty and
-      evolves as events arrive; fair value is read from the oracle at
-      (re)seed time, so it is not part of the config.
+  (** Build a market-maker config. Per-symbol state starts empty and evolves
+      as events arrive; fair value is read from the oracle, not configured.
 
-      - [half_spread_cents] is the starting half-spread on each side;
-        thereafter it adapts toward the observed market half-spread, floored
-        at [min_half_spread_cents].
-      - [max_spread_cents] is the whale tolerance: if the market spread
-        exceeds it, the maker stops quoting that symbol until the spread
-        recovers. *)
+      - [symbols]: symbols to quote.
+      - [size_per_level]: shares per quote.
+      - [num_levels]: quotes posted per side, one cent apart.
+      - [inventory_skew_cents_per_share]: cents the ladder shifts per share
+        of inventory, to lean against the position.
+      - [half_spread_cents]: starting half-spread; adapts toward the observed
+        market, floored at [min_half_spread_cents].
+      - [min_half_spread_cents]: floor on the half-spread.
+      - [max_spread_cents]: whale tolerance — stop quoting a symbol whose
+        market spread exceeds this until it recovers. *)
   val create
     :  symbols:Symbol.t list
     -> size_per_level:int

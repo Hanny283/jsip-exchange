@@ -284,3 +284,88 @@ let%expect_test "snapshot lists levels in price-time priority order" =
       BBO: $150.00 x100 / $150.05 x100
     |}]
 ;;
+
+(* --- iter_orders --- *)
+
+let%expect_test "iter_orders matches orders_on_side on a multi-level book" =
+  let book = Order_book.create Harness.aapl in
+  (* Several price levels per side, plus two orders at one level on each
+     side, so the test exercises both best-price-first level order and
+     oldest-first order within a level. *)
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~order_id:1 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:14990 ~order_id:2 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~order_id:3 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15010 ~order_id:4 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15020 ~order_id:5 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15010 ~order_id:6 ());
+  List.iter Side.all ~f:(fun side ->
+    let visited = Queue.create () in
+    Order_book.iter_orders book side ~f:(Queue.enqueue visited);
+    let visited = Queue.to_list visited in
+    [%test_result: Order.t list]
+      visited
+      ~expect:(Order_book.orders_on_side book side);
+    let ids =
+      List.map visited ~f:(fun order ->
+        Order.order_id order |> Order_id.to_string)
+      |> String.concat ~sep:", "
+    in
+    print_endline [%string "%{side#Side} order ids: %{ids}"]);
+  [%expect {|
+    BUY order ids: 1, 3, 2
+    SELL order ids: 4, 6, 5
+    |}]
+;;
+
+let%expect_test "iter_orders fold agrees with count and orders_on_side" =
+  let book = Order_book.create Harness.aapl in
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~order_id:1 ~size:100 ());
+  let partially_filled =
+    make_order ~side:Buy ~price_cents:14990 ~order_id:2 ~size:80 ()
+  in
+  Order_book.add book partially_filled;
+  (* Partially fill a resting order so remaining size differs from original
+     size — iter_orders must see the live remaining size, not the size at
+     submission. *)
+  Order.fill partially_filled ~by:(Size.of_int 30);
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15010 ~order_id:3 ~size:60 ());
+  List.iter Side.all ~f:(fun side ->
+    let total_size = ref 0 in
+    let order_count = ref 0 in
+    Order_book.iter_orders book side ~f:(fun order ->
+      total_size := !total_size + Size.to_int (Order.remaining_size order);
+      incr order_count);
+    [%test_result: int] !order_count ~expect:(Order_book.count book side);
+    let size_via_list =
+      List.sum
+        (module Int)
+        (Order_book.orders_on_side book side)
+        ~f:(fun order -> Size.to_int (Order.remaining_size order))
+    in
+    [%test_result: int] !total_size ~expect:size_via_list;
+    print_endline
+      [%string
+        "%{side#Side}: count=%{!order_count#Int} \
+         total_remaining=%{!total_size#Int}"]);
+  [%expect
+    {|
+    BUY: count=2 total_remaining=150
+    SELL: count=1 total_remaining=60
+    |}]
+;;

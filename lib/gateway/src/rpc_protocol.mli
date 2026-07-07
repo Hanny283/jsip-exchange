@@ -54,3 +54,15 @@ val audit_log_rpc : (unit, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
 val login_rpc : (string, Participant.t Or_error.t) Rpc.Rpc.t
 val session_feed_rpc : (unit, Exchange_event.t, Error.t) Rpc.Pipe_rpc.t
 val cancel_order_rpc : (Client_order_id.t, unit Or_error.t) Rpc.Rpc.t
+
+(** Subscribe to the server's periodic health snapshots: one
+    [Exchange_stats.t] per sampling interval (one per second by default),
+    covering GC state, request-handling latencies, pipe occupancy,
+    per-participant activity, and book depth.
+
+    Like {!audit_log_rpc}, this RPC is intended for the exchange operator's
+    monitoring tools (e.g. a stats dashboard), not for ordinary trading
+    participants, and it requires no login. A production exchange would gate
+    it behind operator-level credentials; this simulator does not, but the
+    same intent applies. *)
+val exchange_stats_rpc : (unit, Exchange_stats.t, Error.t) Rpc.Pipe_rpc.t

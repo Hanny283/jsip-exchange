@@ -2,25 +2,27 @@ open! Core
 open Jsip_types
 open Jsip_gateway
 
-(* Render the result of [Exchange_command.parse] for expect tests. [Submit] is
-   printed via [Order.Request.to_string] so order-parsing cases read the same
-   as the old [Protocol.parse_command] tests they were migrated from. *)
+(* Render the result of [Exchange_command.parse] for expect tests. [Submit]
+   is printed via [Order.Request.to_string] so order-parsing cases read the
+   same as the old [Protocol.parse_command] tests they were migrated from. *)
 let print_parse ?default_participant line =
   match Exchange_command.parse ?default_participant line with
   | Error err -> print_endline [%string "ERROR: %{Error.to_string_hum err}"]
   | Ok (Exchange_command.Submit req) ->
     print_endline [%string "%{req#Order.Request}"]
   | Ok (Book symbol) -> print_endline [%string "BOOK %{symbol#Symbol}"]
-  | Ok (Subscribe symbol) -> print_endline [%string "SUBSCRIBE %{symbol#Symbol}"]
+  | Ok (Subscribe symbol) ->
+    print_endline [%string "SUBSCRIBE %{symbol#Symbol}"]
   | Ok (Cancel client_order_id) ->
     print_endline [%string "CANCEL %{client_order_id#Client_order_id}"]
 ;;
 
 (* --- BUY/SELL: successful parsing --- *)
-(* The command grammar is now [BUY|SELL <client_id> <symbol> <size> <price>
-   [DAY|IOC]]. Identity comes from the login handshake, so there is no
-   [as <name>] clause; the participant shown below is the [default_participant]
-   (or "anonymous" when none is supplied). *)
+(* The command grammar is now
+   [BUY|SELL <client_id> <symbol> <size> <price> [DAY|IOC]]. Identity comes
+   from the login handshake, so there is no [as <name>] clause; the
+   participant shown below is the [default_participant] (or "anonymous" when
+   none is supplied). *)
 
 let%expect_test "parse: basic buy" =
   print_parse "BUY 1 AAPL 100 150.25";
@@ -87,8 +89,7 @@ let%expect_test "parse: cancel by client order id" =
 let%expect_test "parse: cancel is case insensitive on the verb" =
   print_parse "cancel 7";
   print_parse "Cancel 8";
-  [%expect
-    {|
+  [%expect {|
     CANCEL 7
     CANCEL 8
     |}]
@@ -104,8 +105,7 @@ let%expect_test "parse: book with symbol" =
 let%expect_test "parse: book is case insensitive on the verb" =
   print_parse "book AAPL";
   print_parse "Book TSLA";
-  [%expect
-    {|
+  [%expect {|
     BOOK AAPL
     BOOK TSLA
     |}]
@@ -119,8 +119,7 @@ let%expect_test "parse: subscribe with symbol" =
 let%expect_test "parse: subscribe is case insensitive on the verb" =
   print_parse "subscribe AAPL";
   print_parse "SuBsCrIbE TSLA";
-  [%expect
-    {|
+  [%expect {|
     SUBSCRIBE AAPL
     SUBSCRIBE TSLA
     |}]

@@ -18,7 +18,7 @@ module Config = struct
     ; size : int
     ; pct_marketable : int
     ; price_offset_cents : int
-    ; client_order_id_ref : Int.t Ref.t
+    ; client_order_id_ref : int ref
     }
   [@@deriving sexp_of]
 end

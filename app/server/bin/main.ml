@@ -22,7 +22,9 @@ let default_symbols =
 ;;
 
 let start ~port =
-  let%bind server = Exchange_server.start ~symbols:default_symbols ~port () in
+  let%bind server =
+    Exchange_server.start ~symbols:default_symbols ~port ()
+  in
   print_endline
     [%string
       "JSIP Exchange server listening on port %{Exchange_server.port \

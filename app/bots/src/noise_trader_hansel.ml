@@ -1,25 +1,7 @@
-(** A noise trader: a stand-in for the huge amount of real-world buying and
-    selling that carries no view on where the price is headed (index funds
-    rebalancing, retail traders, a corporation liquidating shares, ...).
-
-    From the matching engine's point of view that activity is
-    indistinguishable from random buying and selling, so this bot simply
-    picks a symbol, a side, a size, a price, and a time-in-force more or less
-    at random and submits an order. It doesn't try to make money; together
-    with {!Jsip_market_maker} it gives the engine something to do — fills
-    happen, the BBO moves, and the informed bots in later exercises have
-    something to react to.
-
-    Prices are chosen relative to the current market: with probability
-    [aggressiveness] the bot crosses the opposite best (a marketable order
-    that trades immediately), otherwise it rests a few cents away from its
-    own side's best. {!Jsip_bot_runtime.Bot_runtime} does not track BBOs, so
-    the bot maintains its own per-symbol cache from [Best_bid_offer_update]
-    events in {!on_event}. When a needed price is missing (empty book) it
-    falls back to the oracle's fundamental via {!Context.fundamental}.
-
-    All randomness is drawn from {!Context.random} so a scenario stays
-    reproducible from its seed. *)
+(* A noise trader: each tick it fires one random order (symbol, side, size,
+   price, time-in-force) to give the matching engine activity. Prices come
+   from a per-symbol BBO cache, falling back to the oracle fundamental. See
+   the .mli for the full description. *)
 
 open! Core
 open! Async

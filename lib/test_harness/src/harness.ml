@@ -25,8 +25,8 @@ let engine t = t.engine
 
 (* --- Builders --- *)
 
-(* The matching engine rejects a repeated [(participant, client_order_id)], so
-   builders hand out a fresh id on every call unless the test pins one
+(* The matching engine rejects a repeated [(participant, client_order_id)],
+   so builders hand out a fresh id on every call unless the test pins one
    explicitly. Tests that care about a specific id pass [~client_order_id]. *)
 let client_order_id_gen = Client_order_id.Generator.create ()
 

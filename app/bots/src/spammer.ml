@@ -3,47 +3,26 @@ open! Async
 open Jsip_types
 module Context = Jsip_bot_runtime.Bot_runtime.Context
 
-(* A pathological bot that simulates an abusive exchange participant. Rather
-   than trading with any strategy, it hammers the exchange with large bursts
-   of orders on every tick, deliberately stressing three shared resources:
-
-   - the server's bounded request queue (submissions pile up faster than the
-     single matching loop can drain them),
-   - the dispatcher's per-event fan-out work, and
-   - the (unbounded) subscriber pipes every accept / BBO / trade event is
-     written to.
-
-   The spammer is [Config.behavior]-driven so pathologies are added as new
-   variants of {!Config.behavior} plus a match arm in {!on_tick}, without
-   touching the runtime wiring. Two behaviors exist: [Resource_exhaustion] (a
-   strategy-free flood that stresses shared server resources) and
-   [Pump_and_dump] (a stateful two-phase manipulation that walks a price up
-   on marketable buys, then dumps its inventory into whoever chased the
-   move). *)
+(* A pathological bot simulating an abusive participant. It is
+   [Config.behavior]-driven, so pathologies are added as new variants plus a
+   match arm in {!on_tick}. Two behaviors exist: [Resource_exhaustion] (a
+   strategy-free flood stressing the request queue, dispatcher fan-out, and
+   subscriber pipes) and [Pump_and_dump] (a stateful two-phase manipulation
+   that walks a price up on marketable buys, then dumps into whoever chased). *)
 
 module Config = struct
   type resource_exhaustion_params =
     { orders_per_burst : int
-        (* Orders fired in a single tight burst per tick -- the core stress
-           lever. Combined with a small tick interval this pins the request
-           queue and floods every subscriber pipe. *)
-    ; buy_chance : Percent.t
-        (* Probability an order is a buy. 50% is balanced; skewing it leans
-           on one side of the book (a crude directional-pressure knob,
-           distinct from the dedicated [Pump_and_dump] behavior below). *)
+        (* Orders fired per tick -- the core stress lever. *)
+    ; buy_chance : Percent.t (* Probability an order is a buy. *)
     ; marketable_chance : Percent.t
-        (* Probability an order crosses the spread and trades immediately
-           (generating fills, and therefore extra session and trade-report
-           fan-out) rather than resting in the book. *)
+        (* Probability an order crosses the spread rather than resting. *)
     ; time_in_force_distribution : Time_in_force.t Bot_random.distribution
-        (* Distribution the order's time-in-force is drawn from. Expressed
-           over all of {!Time_in_force.t} so new order types slot in as new
-           weighted entries. Resting [Day] orders pile up in the book; [Ioc]
-           orders churn the matching loop. *)
+        (* Distribution the time-in-force is drawn from (a weighted entry per
+           {!Time_in_force.t}). *)
     ; mean_size : int (* Center of the per-order size distribution. *)
     ; price_jitter_cents : int
-    (* Half-width of the uniform price band around the reference price, so
-       the burst spreads across many price levels. *)
+    (* Half-width of the price band, to spread the burst across levels. *)
     }
 
   (* Phases of a pump-and-dump. State advances
@@ -55,34 +34,21 @@ module Config = struct
   [@@deriving sexp_of]
 
   type pump_and_dump_params =
-    { target_symbol : Symbol.t
-        (* The single symbol to manipulate. Concentrating every clip on one
-           symbol is what moves its price; spreading across many would dilute
-           the impact to nothing. *)
+    { target_symbol : Symbol.t (* The single symbol to manipulate. *)
     ; pump_target_pct : Percent.t
-        (* Flip from [Accumulate] to [Distribute] once the observed mid has
-           risen this far above [anchor_cents]. The success trigger, derived
-           purely from observed prices -- never the fundamental oracle, so
-           the bot exits on the same information a real manipulator would
-           have. *)
-    ; clip_size : int
-        (* Shares taken per tick. The push-rate lever: a bigger clip walks
-           the book faster and moves price harder, but is more conspicuous. *)
+        (* Flip to [Distribute] once the mid has risen this far above
+           [anchor_cents]. Derived from observed prices, never the oracle. *)
+    ; clip_size : int (* Shares taken per tick -- the push-rate lever. *)
     ; max_inventory : int
-        (* Cap on the accumulated long. Not a flip trigger: it clamps
-           per-tick buying so the position never runs away if the price won't
-           rise. *)
+        (* Cap on the accumulated long; clamps per-tick buying, not a flip
+           trigger. *)
     ; give_up_ticks : int
-        (* If still accumulating after this many ticks (the price never
-           reached [pump_target_pct]), flip to [Distribute] and unwind
-           anyway. The honest "the scheme failed" path, so the bot never
-           holds forever. *)
+        (* Flip to [Distribute] anyway after this many ticks if the target is
+           never reached, so the bot never holds forever. *)
     ; aggression_offset_cents : int
-        (* How far past the opposite touch each clip is priced, so it
-           reliably crosses and trades rather than resting at the touch. *)
+        (* Cents past the opposite touch each clip is priced, so it crosses. *)
     ; entry_time_in_force : Time_in_force.t
-        (* Time-in-force of every clip. [Ioc] keeps clips clean -- they trade
-           what they can immediately and leave no resting exposure behind. *)
+        (* Time-in-force of every clip ([Ioc] leaves no resting exposure). *)
     ; mutable phase : pump_and_dump_phase
     ; mutable position : int
         (* Signed shares held; long while accumulating. *)
@@ -90,8 +56,7 @@ module Config = struct
     ; mutable proceeds_cents : int
         (* Running notional taken while selling. *)
     ; mutable anchor_cents : int option
-        (* Reference price, captured from the first observed two-sided BBO
-           mid; [None] until we have seen one. *)
+        (* Reference mid from the first two-sided BBO; [None] until seen. *)
     ; mutable ticks_in_phase : int (* Ticks spent in the current phase. *)
     }
 

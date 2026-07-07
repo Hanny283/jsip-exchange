@@ -1,17 +1,8 @@
-(** A minimal market-making bot, for use as scenario supporting cast.
-
-    It continuously quotes a symmetric ladder of resting bids and asks around
-    the oracle's current fundamental price. On every tick it cancels its
-    previous quotes and re-posts a fresh ladder, so a drifting fundamental
-    produces a steady stream of order-book changes — and therefore
-    market-data ([Best_bid_offer_update]) events — for other participants to
-    observe.
-
-    This exists because the real {!Jsip_market_maker.Market_maker} is a bare
-    [seed_book] function over a raw connection, not a {!Bot_runtime.Bot}, and
-    the scenario runner can only start [Bot] modules. It is intentionally
-    dumber than the real market maker: it does not track inventory or skew
-    its quotes; it just keeps a fresh two-sided market alive. *)
+(** A minimal market maker for scenario supporting cast: each tick it cancels
+    its previous quotes and re-posts a symmetric ladder of resting bids and
+    asks around the oracle's fundamental, keeping a fresh two-sided market
+    (and a steady stream of [Best_bid_offer_update] events) alive. It is
+    deliberately dumb — no inventory tracking, no skew. *)
 
 open! Core
 open! Async
@@ -21,10 +12,12 @@ open Jsip_bot_runtime
 module Config : sig
   type t
 
-  (** Build a market-maker config. [half_spread_cents] is the gap from fair
-      value to the innermost quote; [num_levels] quotes are posted on each
-      side, one cent further out each, and every quote carries
-      [size_per_level] shares. *)
+  (** Build a market-maker config.
+
+      - [symbol]: the symbol to quote.
+      - [half_spread_cents]: cents from fair value to the innermost quote.
+      - [size_per_level]: shares per quote.
+      - [num_levels]: quotes per side, one cent further out each. *)
   val create
     :  symbol:Symbol.t
     -> half_spread_cents:int

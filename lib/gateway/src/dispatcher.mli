@@ -62,6 +62,31 @@ val dispatch : t -> Exchange_event.t list -> unit
 val clean_up_session : t -> Session.t -> unit Deferred.t
 val set_up_session : t -> Participant.t -> unit Deferred.t
 
+(** {2 Introspection}
+
+    Point-in-time occupancy of every subscriber pipe the dispatcher owns.
+    Because events are written with [Pipe.write_without_pushback_if_open], a
+    subscriber that stops draining accumulates buffered events without bound
+    — these accessors let a stats sampler observe that buildup. Each call is
+    a fresh snapshot; lengths change as events are dispatched and subscribers
+    drain. *)
+
+(** [Pipe.length] of each audit subscriber's pipe, in bag order (one entry
+    per subscriber; the order is arbitrary but stable between calls as long
+    as no subscriber joins or leaves). *)
+val audit_pipe_lengths : t -> int list
+
+(** [Pipe.length] of each market-data subscriber's pipe, grouped by symbol.
+    Symbols are sorted; within a symbol, entries are in bag order. A
+    subscriber registered for several symbols (via [subscribe_market_data])
+    shares one pipe across all of them, so it appears under each of its
+    symbols with the same (total) length. *)
+val market_data_pipe_lengths : t -> (Symbol.t * int list) list
+
+(** [Pipe.length] of each logged-in participant's session feed pipe, sorted
+    by participant. *)
+val session_pipe_lengths : t -> (Participant.t * int) list
+
 module For_testing : sig
   val audit_subscriber_count : t -> int
 end

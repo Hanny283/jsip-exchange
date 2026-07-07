@@ -18,9 +18,9 @@ end
 
 let name = "book_filler"
 
-(* Nothing to seed, but validate the config once up front so a bad scenario
-   fails loudly at startup rather than as an obscure crash mid-tick (an empty
-   [symbols] would make the round-robin divide by zero). *)
+(* Validate the config once at startup so a bad scenario fails loudly rather
+   than crashing mid-tick (empty [symbols] divides by zero in the
+   round-robin). *)
 let on_start (config : Config.t) _context =
   if List.is_empty config.symbols
   then raise_s [%message "Book_filler: symbols must be non-empty"];
@@ -39,28 +39,20 @@ let on_start (config : Config.t) _context =
   Deferred.unit
 ;;
 
-(* Mint a fresh client order id and advance the persistent counter. The
-   exchange rejects duplicate client order ids, so every order must get a new
-   one; the counter lives in [config] (as a [ref]) because the [Bot]
-   interface hands us the same [config] each tick and keeps no state of its
-   own. *)
+(* Mint a fresh client order id and advance the counter. Ids can't repeat,
+   and the counter lives in [config] because the [Bot] interface keeps no
+   state. *)
 let fresh_client_order_id (config : Config.t) =
   let id = !(config.next_client_order_id) in
   incr config.next_client_order_id;
   Client_order_id.of_int id
 ;;
 
-(* Build the [index]th order of this tick for [symbol], priced so it rests
-   rather than fills.
-
-   Successive orders alternate side (even index buys, odd index sells) so
-   both halves of the book grow. Each order sits at least
-   [price_offset_cents] away from the fundamental — buys below, sells above —
-   which keeps it non-marketable even as the fundamental drifts. [level]
-   marches each pair of orders further out by [level_spacing_cents], so a
-   positive spacing spreads the flood across many distinct price levels
-   (spacing 0 stacks them all on one level instead). A buy price is floored
-   at one cent so it stays a valid, positive price. *)
+(* Build the [index]th order of this tick, priced to rest rather than fill.
+   Orders alternate side (even buys, odd sells); each sits at least
+   [price_offset_cents] from fair (buys below, sells above), and [level]
+   marches each pair out by [level_spacing_cents]. Buy prices floor at one
+   cent to stay valid. *)
 let make_order (config : Config.t) context ~symbol ~index : Order.Request.t =
   let fundamental_cents =
     Context.fundamental context symbol |> Price.to_int_cents
@@ -85,19 +77,13 @@ let make_order (config : Config.t) context ~symbol ~index : Order.Request.t =
   }
 ;;
 
-(* Cap on how many submits from a single tick are in flight at once. With a
-   large [orders_per_tick], firing every submit in parallel would pile all
-   the RPC dispatches onto the bot's own scheduler and connection write
-   buffer, stressing the bot instead of the exchange we mean to pressure.
-   Bounding concurrency keeps the bot healthy and delivers a steady load to
-   the server (well above any realistic [orders_per_tick] this stays
-   equivalent to fully parallel). *)
+(* Cap on in-flight submits per tick: firing a huge [orders_per_tick] fully
+   parallel would stress the bot's own scheduler and write buffer rather than
+   the exchange. Bounding it keeps the bot healthy and load steady. *)
 let max_concurrent_submits = 64
 
 (* Each tick, fire [orders_per_tick] resting orders, round-robining across
-   the configured symbols so every book grows. [submit] is one-way, so we do
-   not await a matching result — we only log if the request failed to
-   enqueue. *)
+   symbols. [submit] is one-way, so we only log an enqueue failure. *)
 let on_tick (config : Config.t) context =
   let symbols = Array.of_list config.symbols in
   let num_symbols = Array.length symbols in

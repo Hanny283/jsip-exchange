@@ -115,6 +115,18 @@ let orders_on_side t side =
   List.concat (List.map assoc_list ~f:(fun (_, q) -> Queue.to_list q))
 ;;
 
+(* Best price first means increasing keys for asks (lowest ask leads) and
+   decreasing keys for bids (highest bid leads). [Map.iter] walks keys in
+   increasing order, so asks use it directly; bids reverse the traversal with
+   [Map.fold_right]. Each level's queue is already oldest-first. *)
+let iter_orders t side ~f =
+  match (side : Side.t) with
+  | Buy ->
+    Map.fold_right t.bids ~init:() ~f:(fun ~key:_ ~data:q () ->
+      Queue.iter q ~f)
+  | Sell -> Map.iter t.asks ~f:(fun q -> Queue.iter q ~f)
+;;
+
 let is_empty t = Map.is_empty t.bids && Map.is_empty t.asks
 
 let count t side =
@@ -127,8 +139,8 @@ let best_level t side : Level.t option =
   match best_price t side with
   | None -> None
   | Some price ->
-    (* The level's size is the total shares resting at that price — the sum of
-       every order's remaining size — not the number of orders. *)
+    (* The level's size is the total shares resting at that price — the sum
+       of every order's remaining size — not the number of orders. *)
     let total_size =
       match Map.find side_levels price with
       | None -> 0

@@ -45,6 +45,12 @@ val find_match : t -> Order.t -> Order.t option
 (** All resting orders on the given side. *)
 val orders_on_side : t -> Side.t -> Order.t list
 
+(** Apply [f] to every resting order on [side] without allocating an
+    intermediate list (unlike [orders_on_side]). Visits levels best price
+    first and orders oldest-first within a level. Intended for periodic
+    whole-book scans (e.g. stats sampling). *)
+val iter_orders : t -> Side.t -> f:(Order.t -> unit) -> unit
+
 (** Is the book completely empty (no bids, no asks)? *)
 val is_empty : t -> bool
 

@@ -18,10 +18,10 @@ let create () =
 
 let find_session (t : t) participant = Hashtbl.find t.sessions participant
 
-(* Tear down a session: close its outbound pipe and drop it from the
-   registry so the participant's name is free to log in again. The
-   [phys_equal] guard means a stale connection's close hook can't evict a
-   newer session that has since taken the same name. *)
+(* Tear down a session: close its outbound pipe and drop it from the registry
+   so the participant's name is free to log in again. The [phys_equal] guard
+   means a stale connection's close hook can't evict a newer session that has
+   since taken the same name. *)
 let clean_up_session (t : t) (session : Session.t) : unit Deferred.t =
   let participant = Session.participant session in
   Session.close session;
@@ -138,6 +138,29 @@ let dispatch_event t (event : Exchange_event.t) =
 ;;
 
 let dispatch t events = List.iter events ~f:(dispatch_event t)
+
+(* Introspection: [Pipe.length] works on either end of a pipe, so we can
+   measure occupancy from the writer halves we hold (and, for sessions, from
+   the reader that [Session.reader] exposes) without touching the
+   subscribers' readers. *)
+
+let audit_pipe_lengths t =
+  Bag.to_list t.audit_subscribers |> List.map ~f:Pipe.length
+;;
+
+let market_data_pipe_lengths t =
+  Hashtbl.to_alist t.market_data_subscribers_by_symbol
+  |> List.map ~f:(fun (symbol, subscribers) ->
+    symbol, Bag.to_list subscribers |> List.map ~f:Pipe.length)
+  |> List.sort ~compare:(fun (s1, _) (s2, _) -> Symbol.compare s1 s2)
+;;
+
+let session_pipe_lengths t =
+  Hashtbl.to_alist t.sessions
+  |> List.map ~f:(fun (participant, session) ->
+    participant, Pipe.length (Session.reader session))
+  |> List.sort ~compare:(fun (p1, _) (p2, _) -> Participant.compare p1 p2)
+;;
 
 module For_testing = struct
   let audit_subscriber_count t = Bag.length t.audit_subscribers

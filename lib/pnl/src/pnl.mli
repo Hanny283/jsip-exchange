@@ -21,8 +21,10 @@
     {[
       let pnl =
         Pnl.empty
-        |> fun t -> Pnl.apply_fill t fill1
-        |> fun t -> Pnl.apply_fill t fill2
+        |> fun t ->
+        Pnl.apply_fill t fill1
+        |> fun t ->
+        Pnl.apply_fill t fill2
         |> fun t -> Pnl.apply_trade_report t last_print
       in
       Pnl.summary pnl alice
@@ -57,11 +59,11 @@ module Summary : sig
       { symbol : Symbol.t
       ; inventory : int (** Signed shares: positive long, negative short. *)
       ; average_entry : Price.t option
-        (** Average price the open position was entered at, or [None] when
-            flat. *)
+      (** Average price the open position was entered at, or [None] when
+          flat. *)
       ; reference_price : Price.t option
-        (** Latest trade-print price for this symbol, or [None] if none has
-            been seen. *)
+      (** Latest trade-print price for this symbol, or [None] if none has
+          been seen. *)
       ; realized_cents : int
       ; unrealized_cents : int
       }

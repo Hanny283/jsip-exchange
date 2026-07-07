@@ -4,12 +4,11 @@ open Jsip_types
 open Jsip_bot_runtime
 module Context = Bot_runtime.Context
 
-(* This market maker bot implements dynamicism by reacting to events and not
-   through any tick functions. Every tick, if print_books is true, then the
-   internal books are printed. Internal books are tracked through a table
-   keyed by symbol with symbol_state values. Unified across alll symbols is
-   the inventory skew per share, globally unique client order id, # of shares
-   per level, and the number of lvls. *)
+(* An event-driven market maker: it reacts to fills rather than ticks (a tick
+   only prints the internal books when [print_books] is set). Per-symbol
+   state lives in a table keyed by symbol; inventory skew, the shared
+   order-id counter, shares per level, and the number of levels are common
+   across all symbols. *)
 
 type symbol_state =
   { mutable asks : Client_order_id.t Hash_set.t
@@ -111,8 +110,8 @@ let skewed_fair_value (config : Config.t) fair_value_cents inventory =
 
 (* ....................................................... *)
 
-(* This function dummy sets fair value for ecah symbol at 0 bc on_start will
-   be called to make it nice and pretty yay *)
+(* Seeds each symbol's state with fair value 0; [on_start] repopulates the
+   real fair values before any quoting. *)
 let create_config
   ?(testing = false)
   ()
@@ -152,7 +151,6 @@ let seed_book
      about making this a parallel map" comment is now stale (you did it) —
      drop it. *)
   let%bind () =
-    (* TODO: Think about making this a parallel map *)
     Deferred.List.iter
       ~how:(`Max_concurrent_jobs 64)
       symbols
@@ -227,7 +225,8 @@ let on_start config context =
   seed_book config context (Hashtbl.keys config.state)
 ;;
 
-(* I dont think this will actually do anything for MM bc we react to events *)
+(* No tick-driven quoting — the market maker reacts to events. A tick only
+   prints the internal books when [print_books] is set. *)
 let on_tick (config : Config.t) context =
   let print_books () =
     Hashtbl.iteri

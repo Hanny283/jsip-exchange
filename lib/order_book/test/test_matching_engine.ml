@@ -469,8 +469,8 @@ let%expect_test "scenario: fill IDs are globally sequential" =
 (* ================================================================ *)
 
 (* [Harness.buy]/[Harness.sell] hand out a fresh [client_order_id] each call,
-   so tests that later cancel (or deliberately collide) an order pin the id by
-   overriding the field on the builder-produced request. *)
+   so tests that later cancel (or deliberately collide) an order pin the id
+   by overriding the field on the builder-produced request. *)
 let with_cid cid (request : Order.Request.t) =
   { request with client_order_id = Client_order_id.of_string cid }
 ;;
@@ -520,8 +520,8 @@ let%expect_test "duplicate client_order_id: rejected per participant" =
   let t = Harness.create () in
   submit_ t (with_cid "9001" (Harness.buy ~price_cents:15000 ()));
   submit_ t (with_cid "9001" (Harness.buy ~price_cents:14900 ()));
-  (* Alice reusing her own id is rejected; the id is a per-participant handle,
-     so Bob reusing the same id is accepted. *)
+  (* Alice reusing her own id is rejected; the id is a per-participant
+     handle, so Bob reusing the same id is accepted. *)
   submit_
     t
     (with_cid
@@ -560,7 +560,8 @@ let%expect_test "cancel: a fully filled order can no longer be cancelled" =
     ~participant:Harness.bob
     ~client_order_id:(Client_order_id.of_string "8080")
   |> Harness.print_events;
-  [%expect {|
+  [%expect
+    {|
     ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
     ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
     FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=57 BUY resting=1(Bob) client_id=8080

@@ -8,6 +8,7 @@ module Cancel_storm = Cancel_storm
 module Book_filler_storm = Book_filler_storm
 module Spam_storm = Spam_storm
 module Momentum_day = Momentum_day
+module Quote_stuff = Quote_stuff
 module Pump_and_dump = Pump_and_dump
 module Slow_consumer = Slow_consumer
 
@@ -20,6 +21,7 @@ let all : (module Scenario.S) list =
   ; (module Book_filler_storm)
   ; (module Spam_storm)
   ; (module Momentum_day)
+  ; (module Quote_stuff)
   ; (module Pump_and_dump)
   ; (module Slow_consumer)
   ]

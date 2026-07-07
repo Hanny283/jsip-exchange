@@ -2,38 +2,30 @@ open! Core
 open! Async
 open Jsip_types
 
-(** A pathological exchange participant used to stress-test the exchange.
+(** A pathological exchange participant used to stress-test the exchange. Its
+    misbehavior is data-driven via {!Config.behavior}, so new pathologies are
+    added as new variants. Two exist:
 
-    Its misbehavior is data-driven via {!Config.behavior}, so pathologies are
-    added as new variants without changing the runtime wiring. Two exist:
-
-    - [Resource_exhaustion]: on every tick it fires a tight burst of many
-      orders, deliberately loading the server's bounded request queue, the
-      dispatcher's per-event fan-out, and the (unbounded) subscriber pipes.
-      It has no trading strategy and does not try to make money.
-
-    - [Pump_and_dump]: a stateful two-phase manipulation on a single symbol.
-      It fires marketable buys to walk the price up ([Accumulate]), and once
-      the observed mid has risen a target fraction it flips and sells its
-      inventory into the bids left by anyone who chased the move
-      ([Distribute]). It profits only from price-chasers (e.g. a momentum
-      trader), not from a fundamental-anchored market maker -- and it decides
-      when to dump purely from observed prices, never the oracle.
-
-    A single scenario can run several independent instances by adding several
-    [Bot_spec.t] entries: each entry sets that instance's participant name
-    and RNG seed (both live on the spec, and the seeded RNG is reached
-    through [Context.random]) and its own [Config.t], so instances tune
-    independently. *)
+    - [Resource_exhaustion]: each tick fires a tight burst of orders, loading
+      the request queue, the dispatcher fan-out, and the subscriber pipes. No
+      trading strategy.
+    - [Pump_and_dump]: a stateful two-phase manipulation on one symbol —
+      marketable buys walk the price up ([Accumulate]), then it dumps its
+      inventory into whoever chased the move ([Distribute]). It decides when
+      to dump from observed prices, never the oracle. *)
 module Config : sig
   (** Parameters for the [Resource_exhaustion] behavior. *)
   type resource_exhaustion_params =
     { orders_per_burst : int
-    ; buy_chance : Percent.t
+    (** Orders fired per tick — the core stress lever. *)
+    ; buy_chance : Percent.t (** Probability an order is a buy. *)
     ; marketable_chance : Percent.t
+    (** Probability an order crosses the spread rather than resting. *)
     ; time_in_force_distribution : Time_in_force.t Bot_random.distribution
-    ; mean_size : int
+    (** Distribution the time-in-force is drawn from. *)
+    ; mean_size : int (** Center of the per-order size distribution. *)
     ; price_jitter_cents : int
+    (** Half-width of the price band, to spread the burst across levels. *)
     }
 
   (** Phases of the [Pump_and_dump] behavior. Advances
@@ -44,31 +36,36 @@ module Config : sig
     | Done
   [@@deriving sexp_of]
 
-  (** Parameters and live state for the [Pump_and_dump] behavior. The knob
-      fields are set once; the [mutable] fields are the running state of the
-      scheme (phase, position, cost/proceeds, price anchor) and are exposed
-      so tests can observe how a run progresses. Build one with
-      {!pump_and_dump_params}, which seeds the state. *)
+  (** Parameters and live state for the [Pump_and_dump] behavior. The first
+      group are set-once knobs; the [mutable] fields are running state,
+      exposed so tests can observe a run. Build one with
+      {!pump_and_dump_params}. *)
   type pump_and_dump_params =
-    { target_symbol : Symbol.t
+    { target_symbol : Symbol.t (** The single symbol to manipulate. *)
     ; pump_target_pct : Percent.t
-    ; clip_size : int
-    ; max_inventory : int
+    (** Flip to [Distribute] once the mid has risen this far above the
+        anchor. *)
+    ; clip_size : int (** Shares taken per tick — the push-rate lever. *)
+    ; max_inventory : int (** Cap on the accumulated long. *)
     ; give_up_ticks : int
+    (** Flip to [Distribute] anyway after this many ticks if the target isn't
+        hit. *)
     ; aggression_offset_cents : int
+    (** Cents past the opposite touch each clip is priced, so it crosses. *)
     ; entry_time_in_force : Time_in_force.t
-    ; mutable phase : pump_and_dump_phase
-    ; mutable position : int
-    ; mutable cost_cents : int
+    (** Time-in-force of every clip. *)
+    ; mutable phase : pump_and_dump_phase (** Current phase. *)
+    ; mutable position : int (** Signed shares held. *)
+    ; mutable cost_cents : int (** Running notional paid while buying. *)
     ; mutable proceeds_cents : int
+    (** Running notional taken while selling. *)
     ; mutable anchor_cents : int option
-    ; mutable ticks_in_phase : int
+    (** Reference mid from the first two-sided BBO; [None] until seen. *)
+    ; mutable ticks_in_phase : int (** Ticks spent in the current phase. *)
     }
 
-  (** [pump_and_dump_params ~target_symbol ...] builds a params record with
-      its mutable state seeded to a fresh run ([Accumulate], flat position,
-      no anchor). See the field comments in {!Spammer} for what each knob
-      controls. *)
+  (** Build a params record with its mutable state seeded to a fresh run
+      ([Accumulate], flat position, no anchor). *)
   val pump_and_dump_params
     :  target_symbol:Symbol.t
     -> pump_target_pct:Percent.t

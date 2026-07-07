@@ -11,5 +11,6 @@ module Robyn_noise_trader = Robyn_noise_trader
 module Market_maker_bot_lijia = Market_maker_bot_lijia
 module Momentum_trader_hansel = Momentum_trader_hansel
 module Noise_trader_hansel = Noise_trader_hansel
+module Quote_stuffer = Quote_stuffer
 module Slow_consumer = Slow_consumer
 module Spammer = Spammer
