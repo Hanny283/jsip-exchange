@@ -10,11 +10,46 @@ module Context = Jsip_bot_runtime.Bot_runtime.Context
    the bot exits on the same information a real manipulator would have. *)
 
 module Phase = struct
+  (* Phase-scoped state lives on the constructor that uses it, so states
+     like "accumulating with no anchor" or "a tick budget outside
+     [Accumulate]" are unrepresentable. *)
   type t =
-    | Accumulate (* buying, to walk the price up *)
+    | Awaiting_anchor (* no two-sided market seen yet; not trading *)
+    | Accumulate of
+        { anchor_cents : int
+          (* Reference price: mid of the first two-sided BBO observed. *)
+        ; ticks_in_phase : int
+          (* Ticks spent accumulating, checked against [give_up_ticks]. *)
+        } (* buying, to walk the price up *)
     | Distribute (* dumping the accumulated inventory *)
     | Done (* flat; the scheme has run its course *)
   [@@deriving sexp_of]
+end
+
+(* The fill-driven accounting, pulled into one immutable value with a pure
+   transition so the running position and P&L change at a single assignment
+   site (see [apply_own_fill]). Deliberately phase-independent: fills arrive
+   asynchronously on [on_event], so e.g. a buy fill can land after the tick
+   that flipped [Accumulate -> Distribute] and must still be counted. *)
+module Book = struct
+  type t =
+    { position : int (* Signed shares held; long while accumulating. *)
+    ; cost_cents : int (* Running notional paid while buying. *)
+    ; proceeds_cents : int (* Running notional taken while selling. *)
+    }
+
+  let empty = { position = 0; cost_cents = 0; proceeds_cents = 0 }
+
+  let apply_fill t ~side ~qty ~notional_cents =
+    let position = t.position + (Side.sign side * qty) in
+    match side with
+    | Side.Buy ->
+      { t with position; cost_cents = t.cost_cents + notional_cents }
+    | Sell ->
+      { t with position; proceeds_cents = t.proceeds_cents + notional_cents }
+  ;;
+
+  let realized_pnl_cents t = t.proceeds_cents - t.cost_cents
 end
 
 module Config = struct
@@ -48,16 +83,10 @@ module Config = struct
         (* Time-in-force of every clip. [Ioc] keeps clips clean -- they trade
            what they can immediately and leave no resting exposure behind. *)
     ; generator : Client_order_id.Generator.t
+      (* Three mutable cells, each a distinct concern: the strategy's state
+         machine, the fill-driven accounting, and a market-data cache. *)
     ; mutable phase : Phase.t
-    ; mutable position : int
-        (* Signed shares held; long while accumulating. *)
-    ; mutable cost_cents : int (* Running notional paid while buying. *)
-    ; mutable proceeds_cents : int
-        (* Running notional taken while selling. *)
-    ; mutable anchor_cents : int option
-        (* Reference price, captured from the first observed two-sided BBO
-           mid; [None] until we have seen one. *)
-    ; mutable ticks_in_phase : int (* Ticks spent in the current phase. *)
+    ; mutable book : Book.t
     ; mutable last_bbo : Bbo.t option
     (* Last BBO observed for [target_symbol]; the price reference every clip
        is priced off. *)
@@ -80,20 +109,16 @@ module Config = struct
     ; aggression_offset_cents
     ; entry_time_in_force
     ; generator = Client_order_id.Generator.create ()
-    ; phase = Accumulate
-    ; position = 0
-    ; cost_cents = 0
-    ; proceeds_cents = 0
-    ; anchor_cents = None
-    ; ticks_in_phase = 0
+    ; phase = Awaiting_anchor
+    ; book = Book.empty
     ; last_bbo = None
     }
   ;;
 
   module For_testing = struct
     let phase t = t.phase
-    let position t = t.position
-    let realized_pnl_cents t = t.proceeds_cents - t.cost_cents
+    let position t = t.book.Book.position
+    let realized_pnl_cents t = Book.realized_pnl_cents t.book
   end
 end
 
@@ -162,10 +187,9 @@ let submit_clip (config : Config.t) context ~side ~size =
   Deferred.ignore_m (Context.submit context request)
 ;;
 
-(* Fold one of our own fills into the running position and P&L. Only fills we
-   are a party to move the books, and self-trade prevention means we are at
-   most one side. Buys add cost, sells add proceeds, so realized P&L at the
-   end is [proceeds_cents - cost_cents]. *)
+(* Fold one of our own fills into the book. Only fills we are a party to
+   move the books, and self-trade prevention means we are at most one side.
+   The arithmetic itself is {!Book.apply_fill}. *)
 let apply_own_fill context (config : Config.t) (fill : Fill.t) =
   let me = Context.participant context in
   let our_side =
@@ -179,69 +203,72 @@ let apply_own_fill context (config : Config.t) (fill : Fill.t) =
   | None -> ()
   | Some side ->
     let qty = Size.to_int fill.size in
-    let notional = Price.to_int_cents fill.price * qty in
-    config.position <- config.position + (Side.sign side * qty);
-    (match side with
-     | Side.Buy -> config.cost_cents <- config.cost_cents + notional
-     | Sell -> config.proceeds_cents <- config.proceeds_cents + notional)
+    let notional_cents = Price.to_int_cents fill.price * qty in
+    config.book <- Book.apply_fill config.book ~side ~qty ~notional_cents
 ;;
 
 let on_start (_config : Config.t) _context = Deferred.unit
 
-(* One tick of the state machine. [Accumulate] fires buy clips until the
-   observed mid has risen [pump_target_pct] off the anchor (or the
-   [give_up_ticks] budget runs out), then [Distribute] unwinds the inventory
-   with sell clips until flat, then [Done]. *)
+(* One tick of the state machine. [Awaiting_anchor] does nothing -- the
+   scheme starts only once a first two-sided BBO has anchored it (see
+   [on_event]). [Accumulate] fires buy clips until the observed mid has
+   risen [pump_target_pct] off the anchor (or the [give_up_ticks] budget
+   runs out), then [Distribute] unwinds the inventory with sell clips until
+   flat, then [Done]. *)
 let on_tick (config : Config.t) context =
   match config.phase with
-  | Done -> Deferred.unit
-  | Accumulate ->
-    config.ticks_in_phase <- config.ticks_in_phase + 1;
+  | Awaiting_anchor | Done -> Deferred.unit
+  | Accumulate { anchor_cents; ticks_in_phase } ->
+    let ticks_in_phase = ticks_in_phase + 1 in
     let target_reached =
-      match config.anchor_cents, observed_mid config with
-      | Some anchor, Some mid ->
-        let rise_cents = Float.of_int (mid - anchor) in
+      match observed_mid config with
+      | None -> false
+      | Some mid ->
+        let rise_cents = Float.of_int (mid - anchor_cents) in
         let threshold_cents =
-          Percent.apply config.pump_target_pct (Float.of_int anchor)
+          Percent.apply config.pump_target_pct (Float.of_int anchor_cents)
         in
         Float.( >= ) rise_cents threshold_cents
-      | _, _ -> false
     in
-    if target_reached || config.ticks_in_phase >= config.give_up_ticks
+    if target_reached || ticks_in_phase >= config.give_up_ticks
     then (
       config.phase <- Distribute;
-      config.ticks_in_phase <- 0;
       Deferred.unit)
     else (
-      let room = config.max_inventory - config.position in
+      config.phase <- Accumulate { anchor_cents; ticks_in_phase };
+      let room = config.max_inventory - config.book.position in
       let size = Int.min config.clip_size room in
       if size <= 0
       then Deferred.unit
       else submit_clip config context ~side:Side.Buy ~size)
   | Distribute ->
-    if config.position <= 0
+    if config.book.position <= 0
     then (
       config.phase <- Done;
       Deferred.unit)
     else (
-      let size = Int.min config.clip_size config.position in
+      let size = Int.min config.clip_size config.book.position in
       submit_clip config context ~side:Side.Sell ~size)
 ;;
 
-(* Cache the target symbol's BBO for clip pricing, anchor the price target on
-   the first two-sided market we see, and track our own fills so position and
-   P&L follow a real run. *)
+(* Cache the target symbol's BBO for clip pricing, and track our own fills
+   so the book follows a real run. The first two-sided market we see also
+   starts the scheme: its mid becomes the anchor and we leave
+   [Awaiting_anchor] for [Accumulate]. *)
 let on_event (config : Config.t) context (event : Exchange_event.t) =
   (match event with
    | Best_bid_offer_update { symbol; bbo } ->
      if Symbol.equal symbol config.target_symbol
      then (
        config.last_bbo <- Some bbo;
-       if Option.is_none config.anchor_cents
-       then (
-         match observed_mid_of_bbo bbo with
-         | Some mid -> config.anchor_cents <- Some mid
-         | None -> ()))
+       match config.phase with
+       | Awaiting_anchor ->
+         (match observed_mid_of_bbo bbo with
+          | Some mid ->
+            config.phase
+            <- Accumulate { anchor_cents = mid; ticks_in_phase = 0 }
+          | None -> ())
+       | Accumulate _ | Distribute | Done -> ())
    | Fill fill ->
      if Symbol.equal fill.symbol config.target_symbol
      then apply_own_fill context config fill

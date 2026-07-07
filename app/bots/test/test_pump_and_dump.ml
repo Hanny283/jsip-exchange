@@ -15,6 +15,38 @@ let print_state (config : Pump_and_dump.Config.t) =
     (For_testing.realized_pnl_cents config)
 ;;
 
+(* Before any two-sided market has been observed there is nothing to anchor
+   the price target on, so the bot must not trade: ticks in
+   [Awaiting_anchor] submit nothing. The first two-sided BBO starts the
+   scheme, anchored at that BBO's mid. *)
+let%expect_test "pump-and-dump: no trading before a first two-sided market" =
+  let config =
+    Pump_and_dump.Config.create
+      ~target_symbol:aapl
+      ~pump_target_pct:(Percent.of_percentage 1.0)
+      ~clip_size:20
+      ~max_inventory:100
+      ~give_up_ticks:100
+      ~aggression_offset_cents:2
+      ~entry_time_in_force:Ioc
+  in
+  let bot, submitted, _cancelled =
+    make_recording_bot (module Pump_and_dump) config ()
+  in
+  let%bind () = drive_ticks bot ~ticks:3 in
+  printf "orders before an anchor: %d\n" (List.length !submitted);
+  print_state config;
+  let%bind () = feed_fixed_bbo bot in
+  print_state config;
+  [%expect
+    {|
+    orders before an anchor: 0
+    phase=Awaiting_anchor position=0 realized_pnl_cents=0
+    phase=(Accumulate (anchor_cents 15000) (ticks_in_phase 0)) position=0 realized_pnl_cents=0
+    |}];
+  return ()
+;;
+
 (* The whole scheme end to end: anchor at the fixed BBO's mid, accumulate a
    long on marketable buys, flip to distribute once the observed mid has run
    up past [pump_target_pct], unwind into the raised market, and land [Done]
@@ -60,7 +92,7 @@ let%expect_test "pump-and-dump: accumulate, flip on price rise, then dump" =
   print_submitted submitted;
   [%expect
     {|
-    phase=Accumulate position=40 realized_pnl_cents=-600460
+    phase=(Accumulate (anchor_cents 15000) (ticks_in_phase 2)) position=40 realized_pnl_cents=-600460
     phase=Distribute position=40 realized_pnl_cents=-600460
     phase=Distribute position=0 realized_pnl_cents=7540
     phase=Done position=0 realized_pnl_cents=7540

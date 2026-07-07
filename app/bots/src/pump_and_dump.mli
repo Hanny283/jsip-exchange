@@ -5,10 +5,11 @@ open Jsip_types
 (** A market-manipulation bot running a stateful two-phase pump-and-dump on a
     single symbol.
 
-    It fires marketable buys to walk the price up ([Accumulate]), and once
-    the observed mid has risen a target fraction it flips and sells its
-    inventory into the bids left by anyone who chased the move
-    ([Distribute]). It profits only from price-chasers (e.g. a momentum
+    It waits for a first two-sided market to anchor its price target
+    ([Awaiting_anchor]), fires marketable buys to walk the price up
+    ([Accumulate]), and once the observed mid has risen a target fraction it
+    flips and sells its inventory into the bids left by anyone who chased
+    the move ([Distribute]). It profits only from price-chasers (e.g. a momentum
     trader), not from a fundamental-anchored market maker -- and it decides
     when to dump purely from observed prices, never the oracle.
 
@@ -24,11 +25,21 @@ open Jsip_types
     through [Context.random]) and its own {!Config.t}, so instances tune
     independently. *)
 
-(** Phases of the scheme. State advances [Accumulate -> Distribute -> Done]
-    and never moves backward. *)
+(** Phases of the scheme. State advances
+    [Awaiting_anchor -> Accumulate -> Distribute -> Done] and never moves
+    backward. Phase-scoped state lives on the constructor that uses it, so
+    impossible states -- accumulating with no anchor, a tick budget outside
+    [Accumulate] -- are unrepresentable. *)
 module Phase : sig
   type t =
-    | Accumulate
+    | Awaiting_anchor
+    (** No two-sided market observed yet; the bot does not trade. *)
+    | Accumulate of
+        { anchor_cents : int
+          (** Reference price: mid of the first two-sided BBO observed. *)
+        ; ticks_in_phase : int
+          (** Ticks spent accumulating, checked against [give_up_ticks]. *)
+        }
     | Distribute
     | Done
   [@@deriving sexp_of]
@@ -38,9 +49,8 @@ module Config : sig
   type t
 
   (** [create ~target_symbol ...] builds a config with the scheme's state
-      seeded to a fresh run ([Accumulate], flat position, no price anchor).
-      See the field comments in [pump_and_dump.ml] for what each knob
-      controls. *)
+      seeded to a fresh run ([Awaiting_anchor], flat book). See the field
+      comments in [pump_and_dump.ml] for what each knob controls. *)
   val create
     :  target_symbol:Symbol.t
     -> pump_target_pct:Percent.t
