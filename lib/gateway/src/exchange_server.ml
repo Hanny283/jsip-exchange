@@ -13,12 +13,21 @@ type command =
       ; client_order_id : Client_order_id.t
       }
 
+(* A command paired with the time its RPC handler was entered, so the
+   matching loop can report the end-to-end latency (handler entry to engine
+   completion) to the stats collector. *)
+type queued_command =
+  { command : command
+  ; received_at : Time_ns.t
+  }
+
 type t =
   { engine : Matching_engine.t
   ; dispatcher : Dispatcher.t
-  ; request_writer : command Pipe.Writer.t
+  ; request_writer : queued_command Pipe.Writer.t
   ; tcp_server : (Socket.Address.Inet.t, int) Tcp.Server.t
   ; port : int
+  ; publisher : Stats_publisher.t
   }
 
 module Connection_state = struct
@@ -44,16 +53,27 @@ let enqueue ~request_writer command =
   Ok ()
 ;;
 
-let start_matching_loop ~engine ~dispatcher request_reader =
+let start_matching_loop ~engine ~dispatcher ~collector request_reader =
   don't_wait_for
-    (Pipe.iter_without_pushback request_reader ~f:(fun command ->
-       let events =
-         match command with
-         | Submit request -> Matching_engine.submit engine request
-         | Cancel { participant; client_order_id } ->
-           Matching_engine.cancel engine ~participant ~client_order_id
-       in
-       Dispatcher.dispatch dispatcher events))
+    (Pipe.iter_without_pushback
+       request_reader
+       ~f:(fun { command; received_at } ->
+         Stats_collector.record_loop_iteration
+           collector
+           ~now:(Time_ns.now ());
+         let events =
+           match command with
+           | Submit request -> Matching_engine.submit engine request
+           | Cancel { participant; client_order_id } ->
+             Matching_engine.cancel engine ~participant ~client_order_id
+         in
+         let latency = Time_ns.diff (Time_ns.now ()) received_at in
+         (match command with
+          | Submit _ ->
+            Stats_collector.record_submit_latency collector latency
+          | Cancel _ ->
+            Stats_collector.record_cancel_latency collector latency);
+         Dispatcher.dispatch dispatcher events))
 ;;
 
 let handle_session_feed (state : Connection_state.t) =
@@ -62,18 +82,28 @@ let handle_session_feed (state : Connection_state.t) =
   | Some session -> Ok (Session.reader session)
 ;;
 
-let start ~symbols ~port () =
+let start ~symbols ~port ?(stats_interval = Time_ns.Span.second) () =
   let engine = Matching_engine.create symbols in
   let dispatcher = Dispatcher.create () in
   let request_reader, request_writer = Pipe.create () in
   Pipe.set_size_budget request_writer request_queue_size_budget;
-  start_matching_loop ~engine ~dispatcher request_reader;
+  let collector = Stats_collector.create () in
+  let publisher =
+    Stats_publisher.create
+      ~collector
+      ~dispatcher
+      ~engine
+      ~symbols
+      ~request_queue_length:(fun () -> Pipe.length request_writer)
+  in
+  start_matching_loop ~engine ~dispatcher ~collector request_reader;
   let implementations =
     Rpc.Implementations.create_exn
       ~implementations:
         [ Rpc.Rpc.implement
             Rpc_protocol.submit_order_rpc
             (fun (state : Connection_state.t) request ->
+               let received_at = Time_ns.now () in
                match state.session with
                | None ->
                  Deferred.return (Or_error.error_string "not logged in")
@@ -82,7 +112,8 @@ let start ~symbols ~port () =
                     logged-in client can't submit on behalf of someone else. *)
                  let participant = Session.participant session in
                  let (rq : Order.Request.t) = { request with participant } in
-                 enqueue ~request_writer (Submit rq))
+                 Stats_collector.incr_orders_submitted collector participant;
+                 enqueue ~request_writer { command = Submit rq; received_at })
         ; Rpc.Rpc.implement'
             Rpc_protocol.book_query_rpc
             (fun _state symbol ->
@@ -98,6 +129,10 @@ let start ~symbols ~port () =
         ; Rpc.Pipe_rpc.implement Rpc_protocol.audit_log_rpc (fun _state () ->
             let reader = Dispatcher.subscribe_audit dispatcher in
             return (Ok reader))
+        ; Rpc.Pipe_rpc.implement
+            Rpc_protocol.exchange_stats_rpc
+            (fun _state () ->
+               return (Ok (Stats_publisher.subscribe publisher)))
         ; Rpc.Rpc.implement
             Rpc_protocol.login_rpc
             (fun (state : Connection_state.t) participant_name ->
@@ -137,13 +172,17 @@ let start ~symbols ~port () =
         ; Rpc.Rpc.implement
             Rpc_protocol.cancel_order_rpc
             (fun (state : Connection_state.t) client_order_id ->
+               let received_at = Time_ns.now () in
                match Connection_state.participant state with
                | None ->
                  Deferred.return (Or_error.error_string "not logged in")
                | Some participant ->
+                 Stats_collector.incr_cancels_submitted collector participant;
                  enqueue
                    ~request_writer
-                   (Cancel { participant; client_order_id }))
+                   { command = Cancel { participant; client_order_id }
+                   ; received_at
+                   })
         ]
       ~on_unknown_rpc:`Close_connection
       ~on_exception:Log_on_background_exn
@@ -163,7 +202,17 @@ let start ~symbols ~port () =
       ()
   in
   let actual_port = Tcp.Server.listening_on tcp_server in
-  { engine; dispatcher; request_writer; tcp_server; port = actual_port }
+  Stats_publisher.start
+    publisher
+    ~interval:stats_interval
+    ~stop:(Tcp.Server.close_finished tcp_server);
+  { engine
+  ; dispatcher
+  ; request_writer
+  ; tcp_server
+  ; port = actual_port
+  ; publisher
+  }
 ;;
 
 let port t = t.port
@@ -174,3 +223,7 @@ let close t =
 ;;
 
 let close_finished t = Tcp.Server.close_finished t.tcp_server
+
+module For_testing = struct
+  let publish_stats_snapshot t = Stats_publisher.tick t.publisher
+end

@@ -6,9 +6,15 @@ open! Async
 open Jsip_types
 open Jsip_gateway
 
-(** Start a server on an OS-assigned port, run [f], then shut down. *)
+(** Start a server on an OS-assigned port, run [f], then shut down.
+
+    [stats_interval] is passed through to {!Exchange_server.start}. Tests
+    that pin stats-snapshot contents pass a huge interval, so that only the
+    immediate startup tick fires on its own, and force further snapshots with
+    {!Exchange_server.For_testing.publish_stats_snapshot}. *)
 val with_server
   :  symbols:Symbol.t list
+  -> ?stats_interval:Time_ns.Span.t
   -> (server:Exchange_server.t -> port:int -> 'a Deferred.t)
   -> 'a Deferred.t
 
@@ -41,3 +47,8 @@ val rpc_submit : client -> Order.Request.t -> unit Deferred.t
 
 (** Query the book via RPC. *)
 val rpc_book : client -> Symbol.t -> Book.t option Deferred.t
+
+(** Subscribe to the server's periodic {!Exchange_stats.t} snapshots via
+    {!Rpc_protocol.exchange_stats_rpc}. Raises (failing the test) if the
+    dispatch is rejected. *)
+val subscribe_stats : client -> Exchange_stats.t Pipe.Reader.t Deferred.t

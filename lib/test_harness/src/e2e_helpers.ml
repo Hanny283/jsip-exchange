@@ -3,8 +3,10 @@ open! Async
 open Jsip_gateway
 open Jsip_types
 
-let with_server ~symbols f =
-  let%bind server = Exchange_server.start ~symbols ~port:0 () in
+let with_server ~symbols ?stats_interval f =
+  let%bind server =
+    Exchange_server.start ~symbols ~port:0 ?stats_interval ()
+  in
   let port = Exchange_server.port server in
   Monitor.protect
     (fun () -> f ~server ~port)
@@ -51,4 +53,11 @@ let rpc_submit client request =
 
 let rpc_book client symbol =
   Rpc.Rpc.dispatch_exn Rpc_protocol.book_query_rpc client.conn symbol
+;;
+
+let subscribe_stats client =
+  let%map stats_feed, _metadata =
+    Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.exchange_stats_rpc client.conn ()
+  in
+  stats_feed
 ;;
