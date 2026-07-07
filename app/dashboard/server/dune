@@ -1,0 +1,39 @@
+(library
+ (name jsip_dashboard_server)
+ (public_name jsip-exchange.jsip_dashboard_server)
+ (modules :standard \ main)
+ (libraries
+  core
+  async
+  async_rpc_kernel
+  async_rpc_websocket
+  cohttp-async
+  uri
+  jsip_types
+  jsip_gateway
+  jsip_dashboard_protocol)
+ (preprocess
+  (pps ppx_jane)))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries core core_unix.command_unix async jsip_dashboard_server)
+ (preprocess
+  (pps ppx_jane)))
+
+;; Put the client bundle next to the server binary, where the server's
+;; default [-js] flag expects it.
+
+(rule
+ (target main.bc.js)
+ (action
+  (copy ../client/main.bc.js main.bc.js)))
+
+;; Building the bundle isn't implied by building the server library or
+;; binary, so hook it into the default alias: a plain [dune build] leaves
+;; a runnable dashboard behind.
+
+(alias
+ (name default)
+ (deps main.bc.js))

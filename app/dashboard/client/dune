@@ -1,0 +1,50 @@
+;; [Dashboard_state] is deliberately its own core-only library rather
+;; than a module of [jsip_dashboard_client]: the web libraries below
+;; cannot link into native or bytecode test runners in this switch (no
+;; native [Ojs] implementation; the js_of_ocaml stubs raise at module
+;; init), and js_of_ocaml's 32-bit ints break [Span_histogram.record]
+;; under node — so the pure model must be linkable without them for
+;; ../test to run natively. Single-module library named after its
+;; module: code in [jsip_dashboard_client] still says just
+;; [Dashboard_state]. This also enforces "no Bonsai/Vdom in the model"
+;; at build level.
+
+(library
+ (name dashboard_state)
+ (public_name jsip-exchange.dashboard_state)
+ (modules dashboard_state)
+ (libraries core jsip_types jsip_dashboard_protocol)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name jsip_dashboard_client)
+ (public_name jsip-exchange.jsip_dashboard_client)
+ (modules :standard \ dashboard_state main)
+ (libraries
+  core
+  bonsai
+  bonsai.extra
+  bonsai_web
+  virtual_dom
+  virtual_dom.svg
+  jsip_types
+  jsip_dashboard_protocol
+  dashboard_state)
+ (preprocess
+  (pps ppx_jane bonsai.ppx_bonsai ppx_html js_of_ocaml-ppx)))
+
+;; The browser bundle. [(modes js)] makes dune compile [main] with
+;; js_of_ocaml, producing [main.bc.js]; the dashboard server's dune
+;; copies that bundle next to its binary and serves it.
+
+(executable
+ (name main)
+ (modules main)
+ (modes js)
+ (js_of_ocaml
+  (flags
+   (:standard --effects=cps)))
+ (libraries core bonsai_web jsip_dashboard_client)
+ (preprocess
+  (pps ppx_jane bonsai.ppx_bonsai ppx_html js_of_ocaml-ppx)))

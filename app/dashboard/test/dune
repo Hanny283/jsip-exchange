@@ -1,0 +1,20 @@
+(library
+ (name jsip_dashboard_test)
+ (inline_tests)
+ (libraries
+  core
+  async_rpc_kernel
+  jsip_types
+  jsip_dashboard_protocol
+  ;; Not [jsip_dashboard_client]: its web dependencies cannot link into
+  ;; a native or bytecode test runner in this switch (no native [Ojs];
+  ;; js_of_ocaml stubs raise at module init). The pure client model
+  ;; lives in the core-only [dashboard_state] library instead.
+  dashboard_state
+  ;; [async] comes along with [jsip_dashboard_server] (whose sample
+  ;; buffer is under test here); both link fine into the native runner.
+  async
+  jsip_dashboard_server
+  expect_test_helpers_core)
+ (preprocess
+  (pps ppx_jane)))
