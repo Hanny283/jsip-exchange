@@ -365,3 +365,200 @@ let quote_value color_hex =
 let quote_bid = style (quote_value ok_hex)
 let quote_ask = style (quote_value bad_hex)
 let quote_mid = style (quote_value muted_hex @ [ "font-size: 12px" ])
+
+(* Scenario control bar ------------------------------------------------ *)
+
+(* The band under the banner that launches scenarios. Each group is its own
+   grid so the category title can span the full width above its cards
+   [grid-column: 1 / -1]. Each card is in turn a two-column grid — run
+   button, info toggle — with the expandable info panel spanning both columns
+   as a third row. Running and pathological cards are the base card plus a
+   tinted wash so the two states an operator scans for read at a glance. *)
+
+let controls_bar =
+  style
+    [ "display: flex"
+    ; "flex-direction: column"
+    ; "gap: 12px"
+    ; "padding: 12px 16px"
+    ; "background: #12151b"
+    ; [%string "border-bottom: 1px solid %{border_hex}"]
+    ]
+;;
+
+let controls_header =
+  style
+    [ "display: flex"
+    ; "align-items: center"
+    ; "gap: 12px"
+    ; "flex-wrap: wrap"
+    ]
+;;
+
+let controls_group =
+  style
+    [ "display: grid"
+    ; "grid-template-columns: repeat(auto-fill, minmax(240px, 1fr))"
+    ; "gap: 8px"
+    ; "align-items: start"
+    ]
+;;
+
+let controls_group_title color_hex =
+  style
+    [ "grid-column: 1 / -1"
+    ; "margin: 4px 0 2px"
+    ; "font-size: 11px"
+    ; "font-weight: 700"
+    ; "letter-spacing: 0.08em"
+    ; "text-transform: uppercase"
+    ; [%string "color: %{color_hex}"]
+    ]
+;;
+
+let scenario_card_base =
+  [ "display: grid"
+  ; "grid-template-columns: 1fr auto"
+  ; "gap: 8px"
+  ; "align-items: center"
+  ; "padding: 8px 10px"
+  ; [%string "background: %{panel_bg_hex}"]
+  ; [%string "border: 1px solid %{border_hex}"]
+  ; "border-radius: 7px"
+  ]
+;;
+
+let scenario_card = style scenario_card_base
+
+(* Pathological cards carry a faint amber wash ([warn_hex] at low alpha) so
+   the category the dashboard exists to expose reads even before one runs. *)
+let scenario_card_pathological =
+  style
+    (scenario_card_base
+     @ [ "background: rgba(255, 180, 84, 0.06)"
+       ; "border-color: rgba(255, 180, 84, 0.30)"
+       ])
+;;
+
+(* The live scenario's card: an accent ring plus a faint accent wash. Applied
+   instead of the pathological wash, since "running" is the more urgent state
+   to spot. *)
+let scenario_card_running =
+  style
+    (scenario_card_base
+     @ [ [%string "border-color: %{accent_hex}"]
+       ; "background: rgba(90, 200, 250, 0.07)"
+       ; [%string "box-shadow: inset 0 0 0 1px %{accent_hex}"]
+       ])
+;;
+
+let scenario_run_button =
+  style
+    [ "display: flex"
+    ; "align-items: center"
+    ; "gap: 7px"
+    ; "width: 100%"
+    ; "text-align: left"
+    ; "padding: 6px 9px"
+    ; [%string "background: %{chip_bg_hex}"]
+    ; [%string "color: %{text_hex}"]
+    ; [%string "border: 1px solid %{border_hex}"]
+    ; "border-radius: 5px"
+    ; sans_font
+    ; "font-size: 12.5px"
+    ; "font-weight: 600"
+    ; "line-height: 1.2"
+    ; "cursor: pointer"
+    ]
+;;
+
+let scenario_info_toggle =
+  style
+    [ "display: flex"
+    ; "align-items: center"
+    ; "justify-content: center"
+    ; "flex: none"
+    ; "width: 28px"
+    ; "height: 28px"
+    ; "background: transparent"
+    ; [%string "color: %{muted_hex}"]
+    ; [%string "border: 1px solid %{border_hex}"]
+    ; "border-radius: 5px"
+    ; "font-size: 11px"
+    ; "line-height: 1"
+    ; "cursor: pointer"
+    ]
+;;
+
+let scenario_info_panel =
+  style
+    [ "grid-column: 1 / -1"
+    ; "display: flex"
+    ; "flex-direction: column"
+    ; "gap: 7px"
+    ; "margin-top: 2px"
+    ; "padding-top: 8px"
+    ; [%string "border-top: 1px solid %{border_hex}"]
+    ; "font-size: 12px"
+    ; "line-height: 1.5"
+    ; [%string "color: %{muted_hex}"]
+    ]
+;;
+
+let expected_list =
+  style
+    [ "list-style: none"
+    ; "margin: 0"
+    ; "padding: 0"
+    ; "display: flex"
+    ; "flex-direction: column"
+    ; "gap: 5px"
+    ]
+;;
+
+let expected_item =
+  style
+    [ [%string "color: %{text_hex}"]; "font-size: 12px"; "line-height: 1.4" ]
+;;
+
+let stop_button ~enabled =
+  let base =
+    [ "margin-left: auto"
+    ; "padding: 5px 14px"
+    ; "border-radius: 6px"
+    ; sans_font
+    ; "font-size: 12px"
+    ; "font-weight: 600"
+    ; "background: transparent"
+    ]
+  in
+  let state =
+    match enabled with
+    | true ->
+      [ [%string "color: %{bad_hex}"]
+      ; [%string "border: 1px solid %{bad_hex}"]
+      ; "cursor: pointer"
+      ]
+    | false ->
+      [ [%string "color: %{muted_hex}"]
+      ; [%string "border: 1px solid %{border_hex}"]
+      ; "opacity: 0.6"
+      ; "cursor: not-allowed"
+      ]
+  in
+  style (base @ state)
+;;
+
+let controls_error =
+  style
+    [ "display: flex"
+    ; "align-items: center"
+    ; "gap: 8px"
+    ; "padding: 7px 11px"
+    ; [%string "color: %{bad_hex}"]
+    ; "background: rgba(255, 107, 107, 0.08)"
+    ; "border: 1px solid rgba(255, 107, 107, 0.30)"
+    ; "border-radius: 6px"
+    ; "font-size: 12px"
+    ]
+;;

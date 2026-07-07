@@ -60,7 +60,9 @@ let app (local_ graph) =
     let%arr status in
     Connection_banner.view status
   in
+  let controls = Scenario_controls.component graph in
   let%arr banner
+  and controls
   and submit_latency
   and cancel_latency
   and loop
@@ -71,6 +73,7 @@ let app (local_ graph) =
   {%html|
     <div %{Styles.page}>
       %{banner}
+      %{controls}
       <div %{Styles.grid}>
         %{submit_latency}
         %{cancel_latency}

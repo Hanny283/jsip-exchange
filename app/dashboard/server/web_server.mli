@@ -23,6 +23,11 @@ open! Async
     refreshing the browser needs no server restart; a missing file surfaces
     as an error response for that request only.
 
+    [scenario_manager] backs the four
+    {!Jsip_dashboard_protocol.Scenario_control} RPCs — listing the catalog
+    and launching, stopping, and reporting on the [scenario_runner] child
+    process — served on this same websocket.
+
     Requests for unknown paths get a 404; handler errors are ignored, so one
     bad request cannot take the server down. *)
 val serve
@@ -31,4 +36,5 @@ val serve
   -> recent_samples:
        (Jsip_dashboard_protocol.Recent_samples.Query.t
         -> Jsip_dashboard_protocol.Recent_samples.Response.t)
+  -> scenario_manager:Scenario_manager.t
   -> (Socket.Address.Inet.t, int) Cohttp_async.Server.t Deferred.t

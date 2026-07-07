@@ -15,6 +15,7 @@
   ;; buffer is under test here); both link fine into the native runner.
   async
   jsip_dashboard_server
+  jsip_scenarios
   expect_test_helpers_core)
  (preprocess
   (pps ppx_jane)))

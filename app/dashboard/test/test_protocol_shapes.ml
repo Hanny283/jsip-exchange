@@ -29,3 +29,46 @@ let%expect_test "dashboard-recent-samples RPC" =
      (response 4c5a92191dcc19fff95025300ffdb597))
     |}]
 ;;
+
+let%expect_test "dashboard-list-scenarios RPC" =
+  print_s
+    [%sexp
+      (Rpc.Rpc.shapes Scenario_control.list_scenarios_rpc : Rpc_shapes.t)];
+  [%expect
+    {|
+    (Rpc (query 86ba5df747eec837f0b391dd49f33f9e)
+     (response 197559ff8bb56e920ce5ceead901e885))
+    |}]
+;;
+
+let%expect_test "dashboard-run-scenario RPC" =
+  print_s
+    [%sexp (Rpc.Rpc.shapes Scenario_control.run_scenario_rpc : Rpc_shapes.t)];
+  [%expect
+    {|
+    (Rpc (query d8c64f6d09943ee95f13b675a0c9792e)
+     (response 27f76252e5181aab209cd62aa6e42268))
+    |}]
+;;
+
+let%expect_test "dashboard-stop-scenario RPC" =
+  print_s
+    [%sexp
+      (Rpc.Rpc.shapes Scenario_control.stop_scenario_rpc : Rpc_shapes.t)];
+  [%expect
+    {|
+    (Rpc (query 86ba5df747eec837f0b391dd49f33f9e)
+     (response 27f76252e5181aab209cd62aa6e42268))
+    |}]
+;;
+
+let%expect_test "dashboard-scenario-status RPC" =
+  print_s
+    [%sexp
+      (Rpc.Rpc.shapes Scenario_control.scenario_status_rpc : Rpc_shapes.t)];
+  [%expect
+    {|
+    (Rpc (query 86ba5df747eec837f0b391dd49f33f9e)
+     (response 3aebd89e3c0b0a197d220e56b6bc880f))
+    |}]
+;;

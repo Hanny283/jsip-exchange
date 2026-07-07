@@ -203,3 +203,59 @@ val quote_ask : Vdom.Attr.t
 
 (** Spread text (muted, smaller). *)
 val quote_mid : Vdom.Attr.t
+
+(** {2 Scenario control bar}
+
+    The band under the banner that launches scenarios (see
+    {!Scenario_controls}). Each group is a grid whose title spans all
+    columns; each card is a two-column grid (run button, info toggle) whose
+    info panel spans both columns as a third row. *)
+
+(** The whole band: a vertical stack of a header row and one grid per
+    category, with a hairline under it separating it from the pane grid. *)
+val controls_bar : Vdom.Attr.t
+
+(** The header row: section label, running-status chip, and Stop button. *)
+val controls_header : Vdom.Attr.t
+
+(** One category's grid: a full-width title followed by its cards, which stay
+    top-aligned so an expanded card does not stretch its neighbors. *)
+val controls_group : Vdom.Attr.t
+
+(** A category title spanning the group's full width, in the given color —
+    [warn_hex] for the emphasized pathological group, [muted_hex] otherwise. *)
+val controls_group_title : string -> Vdom.Attr.t
+
+(** A scenario card at rest: run button and info toggle over an optional info
+    panel. *)
+val scenario_card : Vdom.Attr.t
+
+(** The card of the live scenario: an accent ring and faint accent wash. *)
+val scenario_card_running : Vdom.Attr.t
+
+(** A pathological scenario's card: a faint amber wash marking the category. *)
+val scenario_card_pathological : Vdom.Attr.t
+
+(** The card's primary button — the scenario name; launches on click. *)
+val scenario_run_button : Vdom.Attr.t
+
+(** The fixed-size caret button that expands a card's info panel without
+    launching it. *)
+val scenario_info_toggle : Vdom.Attr.t
+
+(** The expandable panel under a card: blurb and expected-behavior list. *)
+val scenario_info_panel : Vdom.Attr.t
+
+(** The list of predicted pane behaviors inside an info panel. *)
+val expected_list : Vdom.Attr.t
+
+(** One predicted-behavior line (its pane name is bolded by the caller). *)
+val expected_item : Vdom.Attr.t
+
+(** The Stop button. [~enabled] renders it in the danger color when something
+    is running and muted (with [not-allowed]) when idle. *)
+val stop_button : enabled:bool -> Vdom.Attr.t
+
+(** The last-error line shown under the header when a launch or child exit
+    failed (red text in a faint red inset). *)
+val controls_error : Vdom.Attr.t

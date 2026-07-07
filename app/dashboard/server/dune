@@ -11,6 +11,7 @@
   uri
   jsip_types
   jsip_gateway
+  jsip_scenarios
   jsip_dashboard_protocol)
  (preprocess
   (pps ppx_jane)))

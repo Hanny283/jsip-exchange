@@ -1,6 +1,7 @@
 open! Core
 open! Async
 module Recent_samples = Jsip_dashboard_protocol.Recent_samples
+module Scenario_control = Jsip_dashboard_protocol.Scenario_control
 
 let html_headers =
   Cohttp.Header.of_list [ "Content-Type", "text/html; charset=utf-8" ]
@@ -38,20 +39,30 @@ let http_handler
     not_found
 ;;
 
-let implementations ~recent_samples =
+let implementations ~recent_samples ~scenario_manager:mgr =
   Rpc.Implementations.create_exn
     ~implementations:
       [ Rpc.Rpc.implement' Recent_samples.rpc (fun () query ->
           recent_samples query)
+      ; Rpc.Rpc.implement' Scenario_control.list_scenarios_rpc (fun () () ->
+          Scenario_manager.list mgr)
+      ; Rpc.Rpc.implement
+          Scenario_control.run_scenario_rpc
+          (fun () { Scenario_control.Run_request.name; seed } ->
+             Scenario_manager.run mgr ~name ~seed)
+      ; Rpc.Rpc.implement Scenario_control.stop_scenario_rpc (fun () () ->
+          Scenario_manager.stop mgr)
+      ; Rpc.Rpc.implement' Scenario_control.scenario_status_rpc (fun () () ->
+          Scenario_manager.status mgr)
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
 ;;
 
-let serve ~port ~js_path ~recent_samples =
+let serve ~port ~js_path ~recent_samples ~scenario_manager =
   Rpc_websocket.Rpc.serve
     ~where_to_listen:(Tcp.Where_to_listen.of_port port)
-    ~implementations:(implementations ~recent_samples)
+    ~implementations:(implementations ~recent_samples ~scenario_manager)
     ~initial_connection_state:
       (fun
         ()
