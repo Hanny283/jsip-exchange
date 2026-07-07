@@ -2,7 +2,10 @@ open! Core
 open Jsip_types
 open Jsip_scenario_runner
 module Fundamental_oracle = Jsip_fundamental.Fundamental_oracle
-module Spammer = Jsip_bots.Spammer
+
+(* [Jsip_bots.Pump_and_dump] can't keep its name here: this scenario module
+   is itself called [Pump_and_dump]. *)
+module Pump_and_dump_bot = Jsip_bots.Pump_and_dump
 module Noise_trader = Jsip_bots.Noise_trader_hansel
 module Momentum_trader = Jsip_bots.Momentum_trader_hansel
 module Market_maker_bot = Jsip_bots.Market_maker_bot_hansel
@@ -10,9 +13,8 @@ module Market_maker_bot = Jsip_bots.Market_maker_bot_hansel
 (* A single-symbol market with four participants, arranged to show a
    pump-and-dump extracting money from a price-chaser:
 
-   - the [pump-and-dumper] ({!Spammer} in its [Pump_and_dump] behavior) walks
-     AAPL up on marketable buys, then dumps its inventory once the mid has
-     risen;
+   - the [pump-and-dumper] ({!Jsip_bots.Pump_and_dump}) walks AAPL up on
+     marketable buys, then dumps its inventory once the mid has risen;
    - the [momentum-trader] reads the public tape and chases the rising price
      -- it is the intended victim, buying near the top and left holding as
      the price falls back;
@@ -69,22 +71,17 @@ let day_ioc_mix ~day_pct =
    plausibly absorb on the dump; [give_up_ticks] of 40 (~10s at this tick
    rate) gives the pump time to work but guarantees an unwind if it stalls. *)
 let pump_and_dump_spec =
-  let params =
-    Spammer.Config.pump_and_dump_params
-      ~target_symbol:symbol
-      ~pump_target_pct:(Percent.of_percentage 1.0)
-      ~clip_size:30
-      ~max_inventory:150
-      ~give_up_ticks:40
-      ~aggression_offset_cents:3
-      ~entry_time_in_force:Ioc
-  in
   Bot_spec.T
-    { bot = (module Spammer)
+    { bot = (module Pump_and_dump_bot)
     ; config =
-        Spammer.Config.create
-          ~symbols:[ symbol ]
-          ~behavior:(Pump_and_dump params)
+        Pump_and_dump_bot.Config.create
+          ~target_symbol:symbol
+          ~pump_target_pct:(Percent.of_percentage 1.0)
+          ~clip_size:30
+          ~max_inventory:150
+          ~give_up_ticks:40
+          ~aggression_offset_cents:3
+          ~entry_time_in_force:Ioc
     ; participant = Participant.of_string "pump-and-dumper"
     ; symbols = [ symbol ]
     ; rng_seed = 5001

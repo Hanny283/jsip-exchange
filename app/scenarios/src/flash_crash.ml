@@ -69,29 +69,25 @@ let day_ioc_mix ~day_pct =
 ;;
 
 (* The whale. There is no dedicated whale bot in the project, so we realize
-   one with the [Spammer]'s resource-exhaustion behavior biased hard to the
-   sell side: a [buy_chance] of 10% makes ~90% of its orders sells, every
-   order is marketable and [Ioc], and a large [mean_size] with deep
-   [price_jitter] means each one sweeps several resting levels before
-   cancelling the remainder. Ticking a few times a second, it dumps size
-   continuously through the crash. Each swept side leaves the book one-sided,
-   which is what blows the spread out past the makers' tolerance below. *)
+   one with the [Spammer] biased hard to the sell side: a [buy_chance] of 10%
+   makes ~90% of its orders sells, every order is marketable and [Ioc], and a
+   large [mean_size] with deep [price_jitter] means each one sweeps several
+   resting levels before cancelling the remainder. Ticking a few times a
+   second, it dumps size continuously through the crash. Each swept side
+   leaves the book one-sided, which is what blows the spread out past the
+   makers' tolerance below. *)
 let whale_spec =
-  let params : Spammer.Config.resource_exhaustion_params =
-    { orders_per_burst = 12
-    ; buy_chance = Percent.of_percentage 10.
-    ; marketable_chance = Percent.of_percentage 100.
-    ; time_in_force_distribution = day_ioc_mix ~day_pct:0.
-    ; mean_size = 40
-    ; price_jitter_cents = 30
-    }
-  in
   Bot_spec.T
     { bot = (module Spammer)
     ; config =
         Spammer.Config.create
           ~symbols:[ symbol ]
-          ~behavior:(Resource_exhaustion params)
+          ~orders_per_burst:12
+          ~buy_chance:(Percent.of_percentage 10.)
+          ~marketable_chance:(Percent.of_percentage 100.)
+          ~time_in_force_distribution:(day_ioc_mix ~day_pct:0.)
+          ~mean_size:40
+          ~price_jitter_cents:30
     ; participant = Participant.of_string "whale"
     ; symbols = [ symbol ]
     ; rng_seed = 5001

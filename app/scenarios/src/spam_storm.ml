@@ -66,14 +66,15 @@ let day_ioc_mix ~day_pct =
    (max event count, not deep sweeps); [Ioc] means nothing rests, so every
    tick is a fresh wave and the leftover cancels (one more event). Small
    [price_jitter] keeps orders near the touch so they reliably cross. *)
-let fan_out_storm_params : Spammer.Config.resource_exhaustion_params =
-  { orders_per_burst = 60
-  ; buy_chance = Percent.of_percentage 50.
-  ; marketable_chance = Percent.of_percentage 100.
-  ; time_in_force_distribution = day_ioc_mix ~day_pct:0.
-  ; mean_size = 3
-  ; price_jitter_cents = 5
-  }
+let fan_out_storm_config =
+  Spammer.Config.create
+    ~symbols:[ symbol ]
+    ~orders_per_burst:60
+    ~buy_chance:(Percent.of_percentage 50.)
+    ~marketable_chance:(Percent.of_percentage 100.)
+    ~time_in_force_distribution:(day_ioc_mix ~day_pct:0.)
+    ~mean_size:3
+    ~price_jitter_cents:5
 ;;
 
 (* Attacks matching-engine CPU. Same marketable/[Ioc] shape as fan-out-storm,
@@ -81,14 +82,15 @@ let fan_out_storm_params : Spammer.Config.resource_exhaustion_params =
    so each order walks many resting levels in a single [match_loop] recursion
    -- long sweeps and many book removals per order. Fewer orders per burst
    because each one is individually expensive to match. *)
-let deep_sweep_params : Spammer.Config.resource_exhaustion_params =
-  { orders_per_burst = 30
-  ; buy_chance = Percent.of_percentage 50.
-  ; marketable_chance = Percent.of_percentage 100.
-  ; time_in_force_distribution = day_ioc_mix ~day_pct:0.
-  ; mean_size = 60
-  ; price_jitter_cents = 30
-  }
+let deep_sweep_config =
+  Spammer.Config.create
+    ~symbols:[ symbol ]
+    ~orders_per_burst:30
+    ~buy_chance:(Percent.of_percentage 50.)
+    ~marketable_chance:(Percent.of_percentage 100.)
+    ~time_in_force_distribution:(day_ioc_mix ~day_pct:0.)
+    ~mean_size:60
+    ~price_jitter_cents:30
 ;;
 
 (* Attacks order-book memory and per-match scan cost. Nothing is marketable,
@@ -97,14 +99,15 @@ let deep_sweep_params : Spammer.Config.resource_exhaustion_params =
    levels, fattening the price->orders maps so every future [find_match] /
    [best_level] scans more. Balanced [buy_chance] bloats both sides. Large
    burst because the whole point is unbounded accumulation. *)
-let book_bloat_params : Spammer.Config.resource_exhaustion_params =
-  { orders_per_burst = 150
-  ; buy_chance = Percent.of_percentage 50.
-  ; marketable_chance = Percent.of_percentage 0.
-  ; time_in_force_distribution = day_ioc_mix ~day_pct:100.
-  ; mean_size = 5
-  ; price_jitter_cents = 200
-  }
+let book_bloat_config =
+  Spammer.Config.create
+    ~symbols:[ symbol ]
+    ~orders_per_burst:150
+    ~buy_chance:(Percent.of_percentage 50.)
+    ~marketable_chance:(Percent.of_percentage 0.)
+    ~time_in_force_distribution:(day_ioc_mix ~day_pct:100.)
+    ~mean_size:5
+    ~price_jitter_cents:200
 ;;
 
 (* Attacks the bounded request queue itself -- raw intake rate. Everything is
@@ -114,32 +117,32 @@ let book_bloat_params : Spammer.Config.resource_exhaustion_params =
    attack onto submission throughput. Huge [orders_per_burst] paired with the
    tightest [tick_interval] below pins the queue faster than the single
    matching loop can drain it. *)
-let queue_flood_params : Spammer.Config.resource_exhaustion_params =
-  { orders_per_burst = 400
-  ; buy_chance = Percent.of_percentage 50.
-  ; marketable_chance = Percent.of_percentage 0.
-  ; time_in_force_distribution = day_ioc_mix ~day_pct:0.
-  ; mean_size = 1
-  ; price_jitter_cents = 50
-  }
+let queue_flood_config =
+  Spammer.Config.create
+    ~symbols:[ symbol ]
+    ~orders_per_burst:400
+    ~buy_chance:(Percent.of_percentage 50.)
+    ~marketable_chance:(Percent.of_percentage 0.)
+    ~time_in_force_distribution:(day_ioc_mix ~day_pct:0.)
+    ~mean_size:1
+    ~price_jitter_cents:50
 ;;
 
 (* One [Bot_spec] per archetype. Participant name, RNG seed, and
    [tick_interval] live on the spec (the per-instance tuning point);
    queue-flood ticks fastest because its attack is purely about rate. Add
-   more archetypes by adding a params record above and a row here. *)
+   more archetypes by adding a config above and a row here. *)
 let spammer_specs =
   List.map
-    [ "fan-out-storm", 1001, Time_ns.Span.of_ms 10.0, fan_out_storm_params
-    ; "deep-sweep", 1002, Time_ns.Span.of_ms 10.0, deep_sweep_params
-    ; "book-bloat", 1003, Time_ns.Span.of_ms 10.0, book_bloat_params
-    ; "queue-flood", 1004, Time_ns.Span.of_ms 2.0, queue_flood_params
+    [ "fan-out-storm", 1001, Time_ns.Span.of_ms 10.0, fan_out_storm_config
+    ; "deep-sweep", 1002, Time_ns.Span.of_ms 10.0, deep_sweep_config
+    ; "book-bloat", 1003, Time_ns.Span.of_ms 10.0, book_bloat_config
+    ; "queue-flood", 1004, Time_ns.Span.of_ms 2.0, queue_flood_config
     ]
-    ~f:(fun (participant, seed, tick_interval, params) ->
-      let behavior : Spammer.Config.behavior = Resource_exhaustion params in
+    ~f:(fun (participant, seed, tick_interval, config) ->
       Bot_spec.T
         { bot = (module Spammer)
-        ; config = Spammer.Config.create ~symbols:[ symbol ] ~behavior
+        ; config
         ; participant = Participant.of_string participant
         ; symbols = [ symbol ]
         ; rng_seed = seed
