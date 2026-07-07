@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783441926883,
+  "lastUpdate": 1783454585528,
   "repoUrl": "https://github.com/Hanny283/jsip-exchange",
   "entries": {
     "Order book benchmark": [
@@ -3724,6 +3724,155 @@ window.BENCHMARK_DATA = {
           {
             "name": "find_match_alloc (n=100)",
             "value": 60.08482133979349,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanselcarmona5@gmail.com",
+            "name": "Hansel",
+            "username": "Hanny283"
+          },
+          "committer": {
+            "email": "hanselcarmona5@gmail.com",
+            "name": "Hansel",
+            "username": "Hanny283"
+          },
+          "distinct": true,
+          "id": "195ce74eb7b41754d51237162457f950a5d6c8b1",
+          "message": "Add scenario launch controls to the dashboard (exercise 2c)\n\nThe dashboard can now launch each scenario from the browser and shows,\nnext to the live panes, what the scenario runs and how it should look —\nthe compare-expected-to-actual loop 2c is built around.\n\nBecause the scenario runner boots its own exchange, the dashboard server\nnow manages it as a child process: clicking a scenario spawns\n`scenario_runner -scenario X -port <exchange-port>`, and switching kills\nthe old child and spawns the new one. The existing feed reconnect +\nseq-regression window reset make the hand-off clean. New run model: start\nonly the dashboard server and click to launch — no separate runner.\n\n- protocol: Scenario_control — list/run/stop/status RPCs, plus\n  Scenario_info (name, blurb, expected-behavior lines, category) and\n  Run_state. Pure/bin_io so the client links it under js_of_ocaml.\n- server: Scenario_catalog (authored blurb + expected pane signature per\n  scenario, grounded in each bot's actual behavior); Scenario_manager\n  (allowlist-validated name, args passed as a list, generation-tagged\n  single child with SIGTERM→2s→SIGKILL and an exit watcher that records\n  unexpected crashes); the four RPCs wired into web_server; a\n  -scenario-runner-exe flag defaulting to the sibling build artifact;\n  shutdown kills the child. A drift test asserts the catalog covers\n  exactly Jsip_scenarios.all.\n- client: a control bar grouped by category (pathological first and\n  emphasized), each scenario a Run button plus an expandable card\n  showing its blurb and expected pane behavior; a Stop button; live\n  running/error state polled once a second.\n\nVerified end-to-end over the real websocket: run → child exchange boots\nwith samples flowing, switch → old child replaced on the same port,\nstop → child gone. Full build and test suite green.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-07T18:33:37Z",
+          "tree_id": "e0c4a475b8bad2165c2e017a0a5fb23a7392c7a4",
+          "url": "https://github.com/Hanny283/jsip-exchange/commit/195ce74eb7b41754d51237162457f950a5d6c8b1"
+        },
+        "date": 1783454585178,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "find_match (n=10)",
+            "value": 37.98332736030299,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=50)",
+            "value": 43.35014726914955,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=100)",
+            "value": 47.020098945549464,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match (n=500)",
+            "value": 68.27355377135034,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=10)",
+            "value": 37.95847528413506,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=50)",
+            "value": 48.13231193398462,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=100)",
+            "value": 52.675380116476525,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_miss (n=500)",
+            "value": 67.60743760418795,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=10)",
+            "value": 42.47491954123274,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=50)",
+            "value": 52.34949290939883,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=100)",
+            "value": 57.42141438064811,
+            "unit": "ns"
+          },
+          {
+            "name": "best_bid_offer (n=500)",
+            "value": 74.02341620686937,
+            "unit": "ns"
+          },
+          {
+            "name": "add+remove (n=100)",
+            "value": 547.3372217204027,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=10)",
+            "value": 133.66086991396972,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=50)",
+            "value": 140.8062809409672,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=100)",
+            "value": 140.7556833301771,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_cross (n=500)",
+            "value": 144.19648815070795,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=10)",
+            "value": 68.1274117532679,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=50)",
+            "value": 67.36678789515985,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=100)",
+            "value": 67.16368983784832,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_ioc_miss (n=500)",
+            "value": 68.5724433820474,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_10_levels",
+            "value": 6298.777071597146,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_50_levels",
+            "value": 38188.12162809319,
+            "unit": "ns"
+          },
+          {
+            "name": "submit_sweep_100_levels",
+            "value": 84143.17151196713,
+            "unit": "ns"
+          },
+          {
+            "name": "find_match_alloc (n=100)",
+            "value": 52.01229196457163,
             "unit": "ns"
           }
         ]
