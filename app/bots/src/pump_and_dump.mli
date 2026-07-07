@@ -8,8 +8,8 @@ open Jsip_types
     It waits for a first two-sided market to anchor its price target
     ([Awaiting_anchor]), fires marketable buys to walk the price up
     ([Accumulate]), and once the observed mid has risen a target fraction it
-    flips and sells its inventory into the bids left by anyone who chased
-    the move ([Distribute]). It profits only from price-chasers (e.g. a momentum
+    flips and sells its inventory into the bids left by anyone who chased the
+    move ([Distribute]). It profits only from price-chasers (e.g. a momentum
     trader), not from a fundamental-anchored market maker -- and it decides
     when to dump purely from observed prices, never the oracle.
 
@@ -36,9 +36,9 @@ module Phase : sig
     (** No two-sided market observed yet; the bot does not trade. *)
     | Accumulate of
         { anchor_cents : int
-          (** Reference price: mid of the first two-sided BBO observed. *)
+        (** Reference price: mid of the first two-sided BBO observed. *)
         ; ticks_in_phase : int
-          (** Ticks spent accumulating, checked against [give_up_ticks]. *)
+        (** Ticks spent accumulating, checked against [give_up_ticks]. *)
         }
     | Distribute
     | Done

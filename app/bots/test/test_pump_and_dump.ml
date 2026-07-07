@@ -16,9 +16,9 @@ let print_state (config : Pump_and_dump.Config.t) =
 ;;
 
 (* Before any two-sided market has been observed there is nothing to anchor
-   the price target on, so the bot must not trade: ticks in
-   [Awaiting_anchor] submit nothing. The first two-sided BBO starts the
-   scheme, anchored at that BBO's mid. *)
+   the price target on, so the bot must not trade: ticks in [Awaiting_anchor]
+   submit nothing. The first two-sided BBO starts the scheme, anchored at
+   that BBO's mid. *)
 let%expect_test "pump-and-dump: no trading before a first two-sided market" =
   let config =
     Pump_and_dump.Config.create

@@ -10,17 +10,18 @@ module Context = Jsip_bot_runtime.Bot_runtime.Context
    the bot exits on the same information a real manipulator would have. *)
 
 module Phase = struct
-  (* Phase-scoped state lives on the constructor that uses it, so states
-     like "accumulating with no anchor" or "a tick budget outside
-     [Accumulate]" are unrepresentable. *)
+  (* Phase-scoped state lives on the constructor that uses it, so states like
+     "accumulating with no anchor" or "a tick budget outside [Accumulate]"
+     are unrepresentable. *)
   type t =
     | Awaiting_anchor (* no two-sided market seen yet; not trading *)
     | Accumulate of
         { anchor_cents : int
-          (* Reference price: mid of the first two-sided BBO observed. *)
+            (* Reference price: mid of the first two-sided BBO observed. *)
         ; ticks_in_phase : int
-          (* Ticks spent accumulating, checked against [give_up_ticks]. *)
-        } (* buying, to walk the price up *)
+        (* Ticks spent accumulating, checked against [give_up_ticks]. *)
+        }
+      (* buying, to walk the price up *)
     | Distribute (* dumping the accumulated inventory *)
     | Done (* flat; the scheme has run its course *)
   [@@deriving sexp_of]
@@ -53,6 +54,9 @@ module Book = struct
 end
 
 module Config = struct
+  (* Knobs first, then three mutable cells, each a distinct concern: the
+     strategy's state machine ([phase]), the fill-driven accounting ([book]),
+     and a market-data cache ([last_bbo]). *)
   type t =
     { target_symbol : Symbol.t
         (* The single symbol to manipulate. Concentrating every clip on one
@@ -83,8 +87,6 @@ module Config = struct
         (* Time-in-force of every clip. [Ioc] keeps clips clean -- they trade
            what they can immediately and leave no resting exposure behind. *)
     ; generator : Client_order_id.Generator.t
-      (* Three mutable cells, each a distinct concern: the strategy's state
-         machine, the fill-driven accounting, and a market-data cache. *)
     ; mutable phase : Phase.t
     ; mutable book : Book.t
     ; mutable last_bbo : Bbo.t option
@@ -187,9 +189,9 @@ let submit_clip (config : Config.t) context ~side ~size =
   Deferred.ignore_m (Context.submit context request)
 ;;
 
-(* Fold one of our own fills into the book. Only fills we are a party to
-   move the books, and self-trade prevention means we are at most one side.
-   The arithmetic itself is {!Book.apply_fill}. *)
+(* Fold one of our own fills into the book. Only fills we are a party to move
+   the books, and self-trade prevention means we are at most one side. The
+   arithmetic itself is {!Book.apply_fill}. *)
 let apply_own_fill context (config : Config.t) (fill : Fill.t) =
   let me = Context.participant context in
   let our_side =
@@ -211,10 +213,10 @@ let on_start (_config : Config.t) _context = Deferred.unit
 
 (* One tick of the state machine. [Awaiting_anchor] does nothing -- the
    scheme starts only once a first two-sided BBO has anchored it (see
-   [on_event]). [Accumulate] fires buy clips until the observed mid has
-   risen [pump_target_pct] off the anchor (or the [give_up_ticks] budget
-   runs out), then [Distribute] unwinds the inventory with sell clips until
-   flat, then [Done]. *)
+   [on_event]). [Accumulate] fires buy clips until the observed mid has risen
+   [pump_target_pct] off the anchor (or the [give_up_ticks] budget runs out),
+   then [Distribute] unwinds the inventory with sell clips until flat, then
+   [Done]. *)
 let on_tick (config : Config.t) context =
   match config.phase with
   | Awaiting_anchor | Done -> Deferred.unit
@@ -251,10 +253,10 @@ let on_tick (config : Config.t) context =
       submit_clip config context ~side:Side.Sell ~size)
 ;;
 
-(* Cache the target symbol's BBO for clip pricing, and track our own fills
-   so the book follows a real run. The first two-sided market we see also
-   starts the scheme: its mid becomes the anchor and we leave
-   [Awaiting_anchor] for [Accumulate]. *)
+(* Cache the target symbol's BBO for clip pricing, and track our own fills so
+   the book follows a real run. The first two-sided market we see also starts
+   the scheme: its mid becomes the anchor and we leave [Awaiting_anchor] for
+   [Accumulate]. *)
 let on_event (config : Config.t) context (event : Exchange_event.t) =
   (match event with
    | Best_bid_offer_update { symbol; bbo } ->
