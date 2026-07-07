@@ -1,10 +1,8 @@
 open! Core
 open Bonsai_web
 
-let em_dash = "—"
-
 let span_or_dash = function
-  | None -> em_dash
+  | None -> "-"
   | Some span -> Time_ns.Span.to_string span
 ;;
 

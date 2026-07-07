@@ -1,7 +1,6 @@
 open! Core
 open Bonsai_web
 
-let em_dash = "—"
 let spark_width = 300
 let spark_height = 44
 
@@ -40,12 +39,12 @@ let view (memory : Dashboard_state.Memory_view.t) =
   in
   let live =
     match live_words with
-    | None -> em_dash
+    | None -> "-"
     | Some words -> format_live_bytes words
   in
   let growth =
     match growth_words_per_sec with
-    | None -> em_dash
+    | None -> "-"
     | Some rate -> format_growth rate
   in
   let caption =

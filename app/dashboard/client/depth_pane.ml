@@ -3,22 +3,21 @@ open Bonsai_web
 open Bonsai.Let_syntax
 open Jsip_types
 
-let em_dash = "—"
 let title = "book depth"
 
 let level_or_dash = function
-  | None -> em_dash
+  | None -> "-"
   | Some level -> Level.to_string level
 ;;
 
 let quote_block (bbo : Bbo.t option) =
   let bid, ask, spread =
     match bbo with
-    | None -> em_dash, em_dash, em_dash
+    | None -> "-", "-", "-"
     | Some bbo ->
       let spread =
         match Bbo.spread bbo with
-        | None -> em_dash
+        | None -> "-"
         | Some price -> Price.to_string price
       in
       level_or_dash bbo.bid, level_or_dash bbo.ask, spread
@@ -121,7 +120,7 @@ let component ~(state : Dashboard_state.t Bonsai.t) (local_ graph) =
     {%html|
       <Pane.view ~title>
         <div %{Styles.empty_note}>
-          <div>#{em_dash}</div>
+          <div>#{"-"}</div>
           <div>no books in window yet</div>
         </div>
       </>

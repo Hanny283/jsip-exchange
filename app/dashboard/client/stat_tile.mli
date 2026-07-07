@@ -3,7 +3,7 @@
     Tiles sit in a {!Styles.tile_row} inside a {!Pane}; each has a fixed
     minimum width and tabular numerals so values can tick every second
     without the row reflowing. The value is a pre-formatted string; callers
-    render missing data as an em-dash ("—") rather than hiding the tile, so a
+    render missing data as a dash ("-") rather than hiding the tile, so a
     pane's shape is stable before its first sample.
 
     Callable self-closing from ppx_html:

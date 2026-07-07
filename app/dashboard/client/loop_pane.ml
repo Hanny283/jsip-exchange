@@ -1,12 +1,11 @@
 open! Core
 open Bonsai_web
 
-let em_dash = "—"
 let spark_width = 300
 let spark_height = 44
 
 let span_or_dash = function
-  | None -> em_dash
+  | None -> "-"
   | Some span -> Time_ns.Span.to_string span
 ;;
 
@@ -21,7 +20,7 @@ let view (loop : Dashboard_state.Loop_view.t) =
   in
   let iterations =
     match iterations_per_sec with
-    | None -> em_dash
+    | None -> "-"
     | Some rate -> Float.to_string_hum ~decimals:1 rate
   in
   let caption =
