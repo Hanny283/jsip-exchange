@@ -71,8 +71,9 @@ let%expect_test "a saturated firehose is bounded: excess events are dropped" =
   (* A subscriber that never drains its reader stands in for one that has
      fallen hopelessly behind. Flooding it with far more than the backlog cap
      of 1024 leaves both the market-data and audit pipes pinned at the cap
-     rather than buffering all 3000 events: the memory a slow consumer can pin
-     is bounded, and the backlog is exactly what the occupancy pane reports. *)
+     rather than buffering all 3000 events: the memory a slow consumer can
+     pin is bounded, and the backlog is exactly what the occupancy pane
+     reports. *)
   let trade : Exchange_event.t =
     Trade_report
       { symbol = Harness.aapl
