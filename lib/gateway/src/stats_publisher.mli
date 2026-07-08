@@ -30,6 +30,7 @@
           ~engine
           ~symbols
           ~request_queue_length:(fun () -> Pipe.length request_writer)
+          ~fundamental:(fun _ -> None)
       in
       Stats_publisher.start
         publisher
@@ -56,13 +57,19 @@ type t
       engine does not trade are skipped.
     - [request_queue_length] reports the matching loop's inbound queue
       occupancy. It is a closure because the server owns that pipe; called
-      once per tick. *)
+      once per tick.
+    - [fundamental] returns the scenario oracle's fair price for a symbol, or
+      [None] for a symbol it does not price (and always, when the exchange
+      runs with no oracle). Each snapshot's [fundamentals] is this applied to
+      every traded symbol. A closure because the oracle lives outside the
+      gateway. *)
 val create
   :  collector:Stats_collector.t
   -> dispatcher:Dispatcher.t
   -> engine:Matching_engine.t
   -> symbols:Symbol.t list
   -> request_queue_length:(unit -> int)
+  -> fundamental:(Symbol.t -> Price.t option)
   -> t
 
 (** [subscribe t] returns a pipe that receives every snapshot produced after

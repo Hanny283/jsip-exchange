@@ -9,6 +9,11 @@ type t =
   ; engine : Matching_engine.t
   ; symbols : Symbol.t list
   ; request_queue_length : unit -> int
+  ; fundamental : Symbol.t -> Price.t option
+      (* The scenario oracle's fair price for a symbol, or [None] when there
+         is no oracle (standalone server) or the symbol is unknown to it. A
+         closure because the oracle lives in [jsip_scenario_runner], which
+         the gateway must not depend on. *)
   ; subscribers : Exchange_stats.t Pipe.Writer.t Bag.t
   ; mutable seq : int
   ; mutable peak_pipes : Exchange_stats.Pipe_occupancy.t option
@@ -17,7 +22,14 @@ type t =
      per interval misses spikes that fill and drain between ticks. *)
   }
 
-let create ~collector ~dispatcher ~engine ~symbols ~request_queue_length =
+let create
+  ~collector
+  ~dispatcher
+  ~engine
+  ~symbols
+  ~request_queue_length
+  ~fundamental
+  =
   { collector
   ; dispatcher
   ; engine
@@ -25,6 +37,7 @@ let create ~collector ~dispatcher ~engine ~symbols ~request_queue_length =
        in the order the snapshot type promises. *)
     symbols = List.sort symbols ~compare:Symbol.compare
   ; request_queue_length
+  ; fundamental
   ; subscribers = Bag.create ()
   ; seq = 0
   ; peak_pipes = None
@@ -131,6 +144,14 @@ let book_depths t ~resting_counts =
       Some (symbol, depth))
 ;;
 
+(* The oracle's fair price for each symbol whose fundamental is known, in the
+   same sorted-by-symbol order as [books]. Symbols with no oracle price (all
+   of them on a standalone server) are dropped, so the list is empty there. *)
+let fundamentals t =
+  List.filter_map t.symbols ~f:(fun symbol ->
+    Option.map (t.fundamental symbol) ~f:(fun price -> symbol, price))
+;;
+
 let no_commands_submitted : Stats_collector.Flushed.Counts.t =
   { orders_submitted = 0; cancels_submitted = 0 }
 ;;
@@ -193,6 +214,7 @@ let tick t =
     ; pipes
     ; participants
     ; books
+    ; fundamentals = fundamentals t
     ; loop
     }
   in

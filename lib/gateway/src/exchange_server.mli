@@ -19,11 +19,17 @@ type t
     [Rpc_protocol.exchange_stats_rpc]. Tests that need deterministic
     snapshots pass a huge interval so the timer never fires after the
     immediate startup tick, then force snapshots via
-    {!For_testing.publish_stats_snapshot}. *)
+    {!For_testing.publish_stats_snapshot}.
+
+    [fundamental] supplies each snapshot's per-symbol fundamental ("fair")
+    price, for a dashboard to plot against the observed market price. It
+    defaults to [fun _ -> None] — the bare exchange knows no fundamental — so
+    only a scenario runner (which owns the price oracle) passes it. *)
 val start
   :  symbols:Symbol.t list
   -> port:int
   -> ?stats_interval:Time_ns.Span.t
+  -> ?fundamental:(Symbol.t -> Price.t option)
   -> unit
   -> t Deferred.t
 

@@ -114,7 +114,13 @@ let forward_feed
   return (Ok ())
 ;;
 
-let start ~symbols ~port ?(stats_interval = Time_ns.Span.second) () =
+let start
+  ~symbols
+  ~port
+  ?(stats_interval = Time_ns.Span.second)
+  ?(fundamental = fun _ -> None)
+  ()
+  =
   let engine = Matching_engine.create symbols in
   let dispatcher = Dispatcher.create () in
   let request_reader, request_writer = Pipe.create () in
@@ -127,6 +133,7 @@ let start ~symbols ~port ?(stats_interval = Time_ns.Span.second) () =
       ~engine
       ~symbols
       ~request_queue_length:(fun () -> Pipe.length request_writer)
+      ~fundamental
   in
   start_matching_loop ~engine ~dispatcher ~collector request_reader;
   let implementations =

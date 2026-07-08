@@ -403,6 +403,48 @@ let depth_view t ~symbol : Depth_view.t option =
          })
 ;;
 
+module Price_view = struct
+  module Point = struct
+    type t =
+      { market : Price.t option
+      ; fundamental : Price.t option
+      }
+    [@@deriving sexp_of, equal]
+  end
+
+  type t = Point.t list [@@deriving sexp_of, equal]
+end
+
+(* The midpoint of the touch, wrapped as a [Price.t]; [None] unless both
+   sides are populated. The exchange has no single canonical "price", so the
+   pane treats the bbo mid as what the market sees — mirroring the shape of
+   {!Bbo.spread} and [observed_mid_of_bbo] in the pump-and-dump bot. *)
+let bbo_mid (bbo : Bbo.t) =
+  match bbo.bid, bbo.ask with
+  | Some (bid : Level.t), Some (ask : Level.t) ->
+    Some
+      (Price.of_int_cents
+         ((Price.to_int_cents bid.price + Price.to_int_cents ask.price) / 2))
+  | _ -> None
+;;
+
+(* One point per sample across the whole window, oldest first: the observed
+   market mid and the oracle fundamental for [symbol]. Either can be [None]
+   for a given sample (no book row, a one-sided book, or no fundamental),
+   which the pane renders as a break in that line. *)
+let price_view t ~symbol : Price_view.t =
+  List.map t.samples ~f:(fun (sample : Exchange_stats.t) ->
+    let market =
+      match List.Assoc.find sample.books symbol ~equal:Symbol.equal with
+      | None -> None
+      | Some (depth : Exchange_stats.Book_depth.t) -> bbo_mid depth.bbo
+    in
+    let fundamental =
+      List.Assoc.find sample.fundamentals symbol ~equal:Symbol.equal
+    in
+    { Price_view.Point.market; fundamental })
+;;
+
 module Loop_view = struct
   type t =
     { p50 : Time_ns.Span.t option

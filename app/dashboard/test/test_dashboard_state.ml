@@ -53,6 +53,7 @@ let sample
   ?(stats_subscribers = [])
   ?(participants = [])
   ?(books = [])
+  ?(fundamentals = [])
   ?(iterations = 0)
   ?(gap_spans = [])
   ~seq
@@ -83,6 +84,7 @@ let sample
       }
   ; participants
   ; books
+  ; fundamentals
   ; loop = { iterations; gap = histogram_of gap_spans }
   }
 ;;
@@ -454,6 +456,99 @@ let%expect_test "depth view: present, quote-less, and absent symbols" =
       (Dashboard_state.depth_view state ~symbol:(Symbol.of_string "GOOG")
        : Dashboard_state.Depth_view.t option)];
   [%expect {| () |}]
+;;
+
+let%expect_test "price view: mid, one-sided, absent, and per-sample \
+                 alignment"
+  =
+  let empty = Dashboard_state.create ~window:window_2min in
+  print_s
+    [%sexp
+      (Dashboard_state.price_view empty ~symbol:aapl
+       : Dashboard_state.Price_view.t)];
+  [%expect {| () |}];
+  let state =
+    feed
+      empty
+      [ sample
+          ~seq:1
+          ~at_s:0
+          ~books:
+            [ ( aapl
+              , book
+                  ~bid:(level ~cents:9_950 ~size:10)
+                  ~ask:(level ~cents:10_050 ~size:5)
+                  ~bid_size:10
+                  ~bid_orders:1
+                  ~ask_size:5
+                  ~ask_orders:2
+                  () )
+            ]
+          ~fundamentals:[ aapl, Price.of_int_cents 10_000 ]
+          ()
+      ; sample
+          ~seq:2
+          ~at_s:1
+          ~books:
+            [ ( aapl
+              , book
+                  ~bid:(level ~cents:10_000 ~size:10)
+                  ~ask:(level ~cents:10_101 ~size:5)
+                  ~bid_size:10
+                  ~bid_orders:1
+                  ~ask_size:5
+                  ~ask_orders:1
+                  () )
+            ; (* One-sided: a bid but no ask, so the mid is undefined. *)
+              ( msft
+              , book
+                  ~bid:(level ~cents:20_000 ~size:3)
+                  ~bid_size:3
+                  ~bid_orders:1
+                  ~ask_size:0
+                  ~ask_orders:0
+                  () )
+            ]
+          ~fundamentals:
+            [ aapl, Price.of_int_cents 9_990
+            ; msft, Price.of_int_cents 20_000
+            ]
+          ()
+      ]
+  in
+  (* AAPL is two-sided in both samples, so [market] is the bbo mid: 10000 in
+     seq 1, and in seq 2 the mid of 10000/10101 truncates to 10050 (integer
+     division of 20101, not 10050.5). [fundamental] tracks the oracle
+     independently. *)
+  print_s
+    [%sexp
+      (Dashboard_state.price_view state ~symbol:aapl
+       : Dashboard_state.Price_view.t)];
+  [%expect
+    {|
+    (((market (10000)) (fundamental (10000)))
+     ((market (10050)) (fundamental (9990))))
+    |}];
+  (* MSFT appears only in seq 2, and one-sided, so [market] is [None] even
+     though the row exists — while its fundamental is known. seq 1 still
+     contributes an all-[None] point: the series is one point per sample,
+     aligned to the window. *)
+  print_s
+    [%sexp
+      (Dashboard_state.price_view state ~symbol:msft
+       : Dashboard_state.Price_view.t)];
+  [%expect
+    {|
+    (((market ()) (fundamental ())) ((market ()) (fundamental (20000))))
+    |}];
+  (* A symbol absent from every sample still yields one all-[None] point per
+     sample. *)
+  print_s
+    [%sexp
+      (Dashboard_state.price_view state ~symbol:(Symbol.of_string "GOOG")
+       : Dashboard_state.Price_view.t)];
+  [%expect
+    {| (((market ()) (fundamental ())) ((market ()) (fundamental ()))) |}]
 ;;
 
 let%expect_test "loop view: gap percentiles, worst-gap points, iteration \

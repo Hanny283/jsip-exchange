@@ -56,6 +56,7 @@ let app (local_ graph) =
       ~view:Participants_pane.view
   in
   let depth = Depth_pane.component ~state graph in
+  let price = Price_pane.component ~state graph in
   let dispatch_stop =
     Rpc_effect.Rpc.dispatcher
       Jsip_dashboard_protocol.Scenario_control.stop_scenario_rpc
@@ -82,7 +83,8 @@ let app (local_ graph) =
   and occupancy
   and memory
   and participants
-  and depth in
+  and depth
+  and price in
   {%html|
     <div %{Styles.page}>
       %{banner}
@@ -95,6 +97,7 @@ let app (local_ graph) =
         %{memory}
         %{participants}
         %{depth}
+        %{price}
       </div>
     </div>
   |}

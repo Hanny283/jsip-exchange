@@ -85,6 +85,7 @@ type t =
   ; pipes : Pipe_occupancy.t
   ; participants : (Participant.t * Participant_stats.t) list
   ; books : (Symbol.t * Book_depth.t) list
+  ; fundamentals : (Symbol.t * Price.t) list
   ; loop : Loop_stats.t
   }
 [@@deriving sexp_of, bin_io]

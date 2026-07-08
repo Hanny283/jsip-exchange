@@ -65,6 +65,7 @@ let%expect_test "snapshot sexp shape is pinned" =
             ; asks = { total_size = Size.of_int 5; order_count = 2 }
             } )
         ]
+    ; fundamentals = [ aapl, Price.of_int_cents 10_000 ]
     ; loop =
         { iterations = 3
         ; gap =
@@ -95,6 +96,7 @@ let%expect_test "snapshot sexp shape is pinned" =
           ((bid (((price 9950) (size 10)))) (ask (((price 10050) (size 5))))))
          (bids ((total_size 10) (order_count 1)))
          (asks ((total_size 5) (order_count 2)))))))
+     (fundamentals ((AAPL 10000)))
      (loop ((iterations 3) (gap (((512us 1.024ms) 1) ((1.024ms 2.048ms) 1))))))
     |}]
 ;;

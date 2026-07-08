@@ -31,6 +31,7 @@ let sample ~seq : Exchange_stats.t =
       }
   ; participants = []
   ; books = []
+  ; fundamentals = []
   ; loop = { iterations = 0; gap = Span_histogram.create () }
   }
 ;;

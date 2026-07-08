@@ -87,12 +87,23 @@ let run (config : Scenario_config.t) ~port ~seed =
     [%string
       "[scenario] starting %{config.name} on port %{port#Int} \
        (seed=%{seed#Int})"];
-  let%bind server = Exchange_server.start ~symbols:config.symbols ~port () in
+  (* Create the oracle before the server so its live fair price can be fed
+     into each stats snapshot. [Fundamental_oracle.price] raises for a symbol
+     absent from the oracle config, so guard it — a symbol the exchange
+     trades but the scenario doesn't price simply reports no fundamental. *)
+  let oracle = Fundamental_oracle.create config.oracle_config ~seed in
+  let%bind server =
+    Exchange_server.start
+      ~symbols:config.symbols
+      ~port
+      ~fundamental:(fun symbol ->
+        Option.try_with (fun () -> Fundamental_oracle.price oracle symbol))
+      ()
+  in
   let where_to_connect =
     Tcp.Where_to_connect.of_host_and_port
       { Host_and_port.host = "localhost"; port }
   in
-  let oracle = Fundamental_oracle.create config.oracle_config ~seed in
   let injector = News_injector.create oracle config.news in
   (* Background tasks. *)
   don't_wait_for (Fundamental_oracle.start oracle);

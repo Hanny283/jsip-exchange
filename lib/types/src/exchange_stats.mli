@@ -148,6 +148,13 @@ type t =
       by participant. *)
   ; books : (Symbol.t * Book_depth.t) list
   (** One row per symbol the exchange trades; sorted by symbol. *)
+  ; fundamentals : (Symbol.t * Price.t) list
+  (** The simulation's fundamental ("fair") price per symbol at sampling
+      time, as read from the scenario's price oracle. A dashboard can plot
+      this against the observed market price to show how far the book has
+      drifted from fair value. One row per symbol whose fundamental is known;
+      sorted by symbol, and empty when the exchange runs with no oracle (e.g.
+      the standalone server). *)
   ; loop : Loop_stats.t
   }
 [@@deriving sexp_of, bin_io]

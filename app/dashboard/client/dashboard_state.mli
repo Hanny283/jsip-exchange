@@ -217,6 +217,31 @@ end
     [symbol]. *)
 val depth_view : t -> symbol:Symbol.t -> Depth_view.t option
 
+(** What the price pane plots: one point per sample across the whole window,
+    each pairing the observed market price with the fundamental for the
+    chosen symbol, so the pane can draw the two as lines over time. *)
+module Price_view : sig
+  (** A single instant. [market] is the bbo mid — the midpoint of the best
+      bid and offer, [None] unless both sides exist — i.e. what the market
+      sees. [fundamental] is the oracle's fair value, [None] when the symbol
+      has no oracle price. Either being [None] shows as a break in that line. *)
+  module Point : sig
+    type t =
+      { market : Price.t option
+      ; fundamental : Price.t option
+      }
+    [@@deriving sexp_of, equal]
+  end
+
+  type t = Point.t list [@@deriving sexp_of, equal]
+end
+
+(** [price_view t ~symbol] is [symbol]'s market-mid-vs-fundamental series
+    across the window, oldest first; empty when the window is empty. Samples
+    with no book row for [symbol] still contribute a point (both fields may
+    be [None]), so the series is aligned one-to-one with the sample window. *)
+val price_view : t -> symbol:Symbol.t -> Price_view.t
+
 (** What the matching-loop pane renders: gap percentiles over the whole
     window, a worst-gap-per-sample sparkline, and the iteration rate. *)
 module Loop_view : sig
