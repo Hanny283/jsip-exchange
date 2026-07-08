@@ -14,7 +14,9 @@ end
 module Action = struct
   type t =
     | Response_received of Recent_samples.Response.t
-    | Reset (** Clear the window and cursor; the next poll re-syncs fresh. *)
+    | Reset
+    (** Empty the window but keep the cursor; the panes clear and refill only
+        with samples produced after the reset (see {!Dashboard_state.clear}). *)
   [@@deriving sexp_of]
 end
 
@@ -29,7 +31,7 @@ let component (local_ graph) =
         match action with
         | Response_received response ->
           Dashboard_state.handle_response model response
-        | Reset -> Dashboard_state.create ~window)
+        | Reset -> Dashboard_state.clear model)
       graph
   in
   let query =

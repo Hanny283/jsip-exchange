@@ -41,6 +41,16 @@ type t [@@deriving sexp_of]
     error; it just means only the newest sample survives eviction. *)
 val create : window:Time_ns.Span.t -> t
 
+(** [clear t] drops every held sample but keeps the cursor ({!latest_seq})
+    and the window length. The panes fall back to their empty states
+    immediately; then, because the next query still asks for samples after
+    the preserved cursor, the window refills only with snapshots produced
+    {e after} the clear — so the view rebuilds from a clean slate instead of
+    the buffered history being replayed. Backs the dashboard's Reset button.
+    (If the exchange later restarts, {!handle_response} still detects the
+    regressed [seq] and re-baselines, exactly as it would without a clear.) *)
+val clear : t -> t
+
 (** [handle_response t response] folds one polling response into the window:
 
     - If [response.latest_seq] — or any sample's [seq] — is {e below} our
@@ -58,8 +68,12 @@ val handle_response
   -> Jsip_dashboard_protocol.Recent_samples.Response.t
   -> t
 
-(** The [seq] of the newest sample held, or [None] if the window is empty.
-    This is the cursor to send as the next query's [after_seq]. *)
+(** The cursor: the highest [seq] folded so far — normally the newest sample
+    held, but preserved across {!clear} (when the window is empty but the
+    cursor is not) and never regressed by eviction. [None] only before the
+    first sample of a run arrives. This is what to send as the next query's
+    [after_seq], so a cleared or steady-state view never re-pulls samples it
+    has already seen. *)
 val latest_seq : t -> int option
 
 (** The number of samples currently in the window. *)

@@ -19,18 +19,24 @@ let trend_step_denominator = 5
 type t =
   { window : Time_ns.Span.t
   ; samples : Exchange_stats.t list (* ascending [seq]; newest last *)
+  ; cursor : int option
+  (* Highest [seq] folded so far — normally the newest sample's [seq], but it
+     outlives eviction and, crucially, [clear]: a cleared window keeps the
+     cursor so the next query asks only for newer samples instead of
+     re-pulling the whole buffer. *)
   }
 [@@deriving sexp_of]
 
-let create ~window = { window; samples = [] }
+let create ~window = { window; samples = []; cursor = None }
 let sample_count t = List.length t.samples
 let newest t = List.last t.samples
 
-let latest_seq t =
-  match newest t with
-  | None -> None
-  | Some (sample : Exchange_stats.t) -> Some sample.seq
-;;
+(* [clear] empties the window but keeps [cursor] (and [window]): the panes
+   render their empty states, and because the query still asks for samples
+   after [cursor], the next polls refill only with snapshots produced after
+   the clear — a clean slate rather than the buffered history replayed. *)
+let clear t = { t with samples = [] }
+let latest_seq t = t.cursor
 
 let symbols t =
   List.concat_map t.samples ~f:(fun (sample : Exchange_stats.t) ->
@@ -70,7 +76,9 @@ let evict t =
 let handle_response t (response : Recent_samples.Response.t) =
   let t =
     match restart_detected t response with
-    | true -> { t with samples = [] }
+    (* Numbering began again below our cursor: drop the old window and the
+       cursor so the new, lower sequence re-baselines cleanly. *)
+    | true -> { t with samples = []; cursor = None }
     | false -> t
   in
   let rev_samples =
@@ -86,7 +94,16 @@ let handle_response t (response : Recent_samples.Response.t) =
           rev_samples
         | _ -> sample :: rev_samples)
   in
-  evict { t with samples = List.rev rev_samples }
+  let t = evict { t with samples = List.rev rev_samples } in
+  (* Advance the cursor to the newest sample now held. It never regresses via
+     eviction (the newest sample is never evicted) and persists through
+     [clear], so the query cursor only ever moves forward within a run. *)
+  let cursor =
+    match newest t with
+    | Some (sample : Exchange_stats.t) -> Some sample.seq
+    | None -> t.cursor
+  in
+  { t with cursor }
 ;;
 
 (* The "before" sample for trends: the newest sample at least

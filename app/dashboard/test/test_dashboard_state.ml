@@ -174,6 +174,25 @@ let%expect_test "a regressed latest_seq resets the window (restart)" =
   [%expect {| ((latest_seq (2)) (sample_count 1)) |}]
 ;;
 
+let%expect_test "clear empties the window but keeps the cursor" =
+  let state = Dashboard_state.create ~window:window_2min in
+  let state =
+    feed state [ sample ~seq:5 ~at_s:0 (); sample ~seq:6 ~at_s:1 () ]
+  in
+  show_cursor state;
+  [%expect {| ((latest_seq (6)) (sample_count 2)) |}];
+  (* Clear drops the samples but keeps the cursor at 6. *)
+  let state = Dashboard_state.clear state in
+  show_cursor state;
+  [%expect {| ((latest_seq (6)) (sample_count 0)) |}];
+  (* The next response only carries newer samples (the server filters on the
+     preserved cursor), so the window rebuilds from a clean slate — the old 5
+     and 6 do not come back. *)
+  let state = feed state [ sample ~seq:7 ~at_s:2 () ] in
+  show_cursor state;
+  [%expect {| ((latest_seq (7)) (sample_count 1)) |}]
+;;
+
 let%expect_test "memory view: 60s slice, points, and growth sign" =
   let empty = Dashboard_state.create ~window:window_2min in
   print_s

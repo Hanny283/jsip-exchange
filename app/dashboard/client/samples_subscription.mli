@@ -40,9 +40,12 @@ end
 (** [component graph] starts the once-a-second poll and returns the
     continuously updated model, the connection status, and a [reset] effect.
 
-    Running [reset] clears the window and the [after_seq] cursor, so the next
-    poll re-syncs from the server's current buffer — a manual escape hatch
-    for the rare case where the view is stuck on stale samples. *)
+    Running [reset] empties the window but keeps the [after_seq] cursor (see
+    {!Dashboard_state.clear}): the panes blank immediately and then refill
+    only with samples produced after the reset, so the view rebuilds from a
+    clean slate rather than replaying the buffered history. A manual escape
+    hatch for when the view looks stale or you want a fresh read of a running
+    scenario. *)
 val component
   :  local_ Bonsai.graph
   -> Dashboard_state.t Bonsai.t * Status.t Bonsai.t * unit Effect.t Bonsai.t
