@@ -3,7 +3,7 @@ open Core_bench
 
 (* Sizes are kept modest: [Silly_store] is O(n) per operation, so [build] is
    ~O(n^2). *)
-let sizes = [ 10; 100; 1000 ]
+let sizes = [ 10; 100; 1000; 10000 ]
 let present_key n = n / 2
 let absent_key = -1
 
@@ -42,10 +42,36 @@ let bench_silly =
    in index order: hence [List.iter] over [List.init] rather than a
    side-effecting [List.init], whose evaluation order isn't guaranteed
    left-to-right. *)
-let seq_tests ~name ~create ~set ~get =
-  (* "TODO: benchmark for part 4, 0b" *)
-  ignore (name, create, set, get);
-  []
+let seq_tests ~name ~create ~set ~get ~remove =
+  let build n =
+    let seq = create () in
+    List.iter (List.init n ~f:Fn.id) ~f:(fun key -> set seq ~key ~data:key);
+    seq
+  in
+  List.concat_map sizes ~f:(fun n ->
+    let prebuilt = build n in
+    (* The remove benchmarks mutate their fixture, so each thunk removes one
+       element and appends one back: the length stays [n] across runs, and
+       the timed work is a single remove (plus a common O(1) append).
+       Removing from the front vs the end isolates the shift cost. *)
+    [ Bench.Test.create ~name:(sprintf "%s build (n=%d)" name n) (fun () ->
+        ignore (build n : _))
+    ; Bench.Test.create ~name:(sprintf "%s get_hit (n=%d)" name n) (fun () ->
+        ignore (get prebuilt (present_key n) : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s get_miss (n=%d)" name n)
+        (fun () -> ignore (get prebuilt absent_key : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s remove_front (n=%d)" name n)
+        (fun () ->
+           remove prebuilt 0;
+           set prebuilt ~key:(n - 1) ~data:0)
+    ; Bench.Test.create
+        ~name:(sprintf "%s remove_end (n=%d)" name n)
+        (fun () ->
+           remove prebuilt (n - 1);
+           set prebuilt ~key:(n - 1) ~data:0)
+    ])
 ;;
 
 let bench_sequential =
@@ -55,11 +81,13 @@ let bench_sequential =
         ~create:Sequences.List_seq.create
         ~set:Sequences.List_seq.set
         ~get:Sequences.List_seq.get
+        ~remove:Sequences.List_seq.remove
     ; seq_tests
         ~name:"Dynarray_seq"
         ~create:Sequences.Dynarray_seq.create
         ~set:Sequences.Dynarray_seq.set
         ~get:Sequences.Dynarray_seq.get
+        ~remove:Sequences.Dynarray_seq.remove
     ]
 ;;
 

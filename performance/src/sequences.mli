@@ -19,6 +19,7 @@ module List_seq : sig
   val create : unit -> t
   val set : t -> key:int -> data:int -> unit
   val get : t -> int -> int option
+  val remove : t -> int -> unit
 end
 
 module Dynarray_seq : sig
@@ -30,4 +31,5 @@ module Dynarray_seq : sig
   val create : unit -> t
   val set : t -> key:int -> data:int -> unit
   val get : t -> int -> int option
+  val remove : t -> int -> unit
 end
