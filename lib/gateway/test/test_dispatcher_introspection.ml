@@ -59,3 +59,30 @@ let%expect_test "pipe lengths reflect undrained dispatched events" =
     {| ((audit (6)) (market_data ((AAPL (2)) (TSLA (2)))) (sessions ((Alice 4)))) |}];
   return ()
 ;;
+
+let%expect_test "a saturated firehose is bounded: excess events are dropped" =
+  let dispatcher = Dispatcher.create () in
+  let (_ : Exchange_event.t Pipe.Reader.t) =
+    Dispatcher.subscribe_audit dispatcher
+  in
+  let (_ : Exchange_event.t Pipe.Reader.t) =
+    Dispatcher.subscribe_market_data dispatcher [ Harness.aapl ]
+  in
+  (* A subscriber that never drains its reader stands in for one that has
+     fallen hopelessly behind. Flooding it with far more than the backlog cap
+     of 1024 leaves both the market-data and audit pipes pinned at the cap
+     rather than buffering all 3000 events: the memory a slow consumer can pin
+     is bounded, and the backlog is exactly what the occupancy pane reports. *)
+  let trade : Exchange_event.t =
+    Trade_report
+      { symbol = Harness.aapl
+      ; price = Price.of_int_cents 15000
+      ; size = Size.of_int 1
+      }
+  in
+  Dispatcher.dispatch dispatcher (List.init 3000 ~f:(fun _ -> trade));
+  print_pipe_lengths dispatcher;
+  [%expect
+    {| ((audit (1024)) (market_data ((AAPL (1024)))) (sessions ())) |}];
+  return ()
+;;

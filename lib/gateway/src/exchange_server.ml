@@ -82,6 +82,38 @@ let handle_session_feed (state : Connection_state.t) =
   | Some session -> Ok (Session.reader session)
 ;;
 
+(* Stream a dispatcher feed [reader] to one subscriber with per-event
+   pushback: [Pipe.iter] does not pull the next event until the current one
+   has flushed to the subscriber, so a slow consumer backs up [reader] rather
+   than the backlog disappearing into the transport's (effectively unbounded)
+   send buffer. The dispatcher bounds and drops on [reader], so this backlog
+   is capped and shows up in the pipe-occupancy pane. Closing either end
+   tears down the other. Used for the market-data and audit firehoses, where
+   a lossy feed for a slow observer is acceptable. *)
+let forward_feed
+  reader
+  (writer : Exchange_event.t Rpc.Pipe_rpc.Direct_stream_writer.t)
+  =
+  don't_wait_for
+    (let%map () = Rpc.Pipe_rpc.Direct_stream_writer.closed writer in
+     Pipe.close_read reader);
+  don't_wait_for
+    (let%map () =
+       Pipe.iter reader ~f:(fun event ->
+         match Rpc.Pipe_rpc.Direct_stream_writer.write writer event with
+         | `Closed ->
+           Pipe.close_read reader;
+           return ()
+         | `Flushed flushed ->
+           (* Give up waiting if the subscriber vanishes mid-flush, so a
+              disconnect can't wedge the iteration. *)
+           Deferred.any
+             [ flushed; Rpc.Pipe_rpc.Direct_stream_writer.closed writer ])
+     in
+     Rpc.Pipe_rpc.Direct_stream_writer.close writer);
+  return (Ok ())
+;;
+
 let start ~symbols ~port ?(stats_interval = Time_ns.Span.second) () =
   let engine = Matching_engine.create symbols in
   let dispatcher = Dispatcher.create () in
@@ -119,16 +151,16 @@ let start ~symbols ~port ?(stats_interval = Time_ns.Span.second) () =
             (fun _state symbol ->
                Matching_engine.book engine symbol
                |> Option.map ~f:Order_book.snapshot)
-        ; Rpc.Pipe_rpc.implement
+        ; Rpc.Pipe_rpc.implement_direct
             Rpc_protocol.market_data_rpc
-            (fun _state symbols ->
-               let reader =
-                 Dispatcher.subscribe_market_data dispatcher symbols
-               in
-               return (Ok reader))
-        ; Rpc.Pipe_rpc.implement Rpc_protocol.audit_log_rpc (fun _state () ->
-            let reader = Dispatcher.subscribe_audit dispatcher in
-            return (Ok reader))
+            (fun _state symbols writer ->
+               forward_feed
+                 (Dispatcher.subscribe_market_data dispatcher symbols)
+                 writer)
+        ; Rpc.Pipe_rpc.implement_direct
+            Rpc_protocol.audit_log_rpc
+            (fun _state () writer ->
+               forward_feed (Dispatcher.subscribe_audit dispatcher) writer)
         ; Rpc.Pipe_rpc.implement
             Rpc_protocol.exchange_stats_rpc
             (fun _state () ->

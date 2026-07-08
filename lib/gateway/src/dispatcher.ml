@@ -80,17 +80,32 @@ let subscribe_audit t =
   reader
 ;;
 
+(* A subscriber this far behind is treated as saturated: further events for
+   it are dropped rather than buffered. Two things fall out of this. The
+   server's per-subscriber memory is bounded (a single slow consumer can no
+   longer balloon it without limit), and — because [Exchange_server] streams
+   each feed with per-event pushback so a slow subscriber's backlog collects
+   in this pipe rather than the transport's send buffer — the backlog stays
+   visible as pipe occupancy, capped here. A market-data or audit consumer
+   that cannot keep up gets a lossy feed; that is the intended real-world
+   behavior for a firehose observer. Session feeds are deliberately left
+   unbounded elsewhere: they carry a participant's own fills, which must not
+   be dropped. *)
+let max_feed_backlog = 1024
+
 let push_market_data t event symbol =
   match Hashtbl.find t.market_data_subscribers_by_symbol symbol with
   | None -> ()
   | Some subscribers ->
     Bag.iter subscribers ~f:(fun writer ->
-      Pipe.write_without_pushback_if_open writer event)
+      if Pipe.length writer < max_feed_backlog
+      then Pipe.write_without_pushback_if_open writer event)
 ;;
 
 let push_audit t event =
   Bag.iter t.audit_subscribers ~f:(fun writer ->
-    Pipe.write_without_pushback_if_open writer event)
+    if Pipe.length writer < max_feed_backlog
+    then Pipe.write_without_pushback_if_open writer event)
 ;;
 
 let push_to_session t participant event =
