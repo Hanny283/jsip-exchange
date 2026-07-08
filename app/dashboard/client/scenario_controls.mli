@@ -7,8 +7,10 @@
 
     - polls [scenario_status_rpc] once a second for what is live and the last
       launch/exit error;
-    - fetches [list_scenarios_rpc] every 15s (the catalog is static), so the
-      bar renders a muted "loading…" state until the first list arrives;
+    - fetches [list_scenarios_rpc] once with [poll_until_ok] (the catalog is
+      static), retrying promptly until the first list arrives — so the bar
+      shows a muted "loading…" state only until then, even if the first
+      attempt races a just-opened websocket — and then stops polling it;
     - dispatches [run_scenario_rpc] / [stop_scenario_rpc] from the Run and
       Stop buttons.
 

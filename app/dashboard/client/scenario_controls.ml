@@ -7,10 +7,13 @@ module Scenario_info = Scenario_control.Scenario_info
 module Run_request = Scenario_control.Run_request
 module Run_state = Scenario_control.Run_state
 
-(* Poll the live status often (it changes as children start and exit) but the
-   catalog rarely — it is a static server-side value. *)
+(* Poll the live status often — it changes as children start and exit. The
+   catalog is static, so fetch it once with [poll_until_ok]: it retries
+   promptly until the first list arrives (even if the first attempt races a
+   just-opened websocket) and then stops, instead of leaving the bar stuck on
+   "loading…" until a slow repoll. *)
 let status_poll_every = Time_ns.Span.of_sec 1.
-let list_poll_every = Time_ns.Span.of_sec 15.
+let list_retry_every = Time_ns.Span.of_sec 1.
 
 (* Pathological first and emphasized: those are the pathologies the dashboard
    exists to make visible. *)
@@ -245,10 +248,10 @@ let component (local_ graph) =
       graph
   in
   let scenarios =
-    Rpc_effect.Rpc.poll
+    Rpc_effect.Rpc.poll_until_ok
       Scenario_control.list_scenarios_rpc
       ~equal_query:[%equal: unit]
-      ~every:(Bonsai.return list_poll_every)
+      ~retry_interval:(Bonsai.return list_retry_every)
       ~output_type:Last_ok_response
       (Bonsai.return ())
       graph
