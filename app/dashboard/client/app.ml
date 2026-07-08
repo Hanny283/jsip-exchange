@@ -56,8 +56,21 @@ let app (local_ graph) =
       ~view:Participants_pane.view
   in
   let depth = Depth_pane.component ~state graph in
+  let dispatch_stop =
+    Rpc_effect.Rpc.dispatcher
+      Jsip_dashboard_protocol.Scenario_control.stop_scenario_rpc
+      graph
+  in
   let banner =
-    let%arr status and reset in
+    let%arr status and reset and dispatch_stop in
+    (* Reset stops the running scenario before clearing the sample window.
+       With the exchange child dead no fresh samples arrive to refill the
+       panes, so they clear and stay empty. Stop first, then clear, so the
+       clear lands once the feed has already gone quiet. *)
+    let reset =
+      let%bind.Effect (_ : unit Or_error.t Or_error.t) = dispatch_stop () in
+      reset
+    in
     Connection_banner.view ~reset status
   in
   let controls = Scenario_controls.component graph in

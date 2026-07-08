@@ -11,8 +11,10 @@
       showing the last good window, so the banner is the one place a broken
       feed is unmissable.
 
-    A [Reset] button on the right runs the supplied effect (in practice
-    {!Samples_subscription}'s reset, which clears the window and re-syncs). *)
+    A [Reset] button on the right runs the supplied effect. In practice that
+    effect stops the running scenario and then clears the sample window: with
+    the exchange child process gone, no fresh samples arrive, so the panes
+    clear and stay empty. *)
 
 open! Core
 open Bonsai_web
