@@ -7,16 +7,14 @@ let overflow_bucket = num_buckets - 1
    a power-of-two multiple of it. *)
 let base_boundary_ns = 1000
 
-(* Boundaries are computed with [scale_int] (Int63 arithmetic under the
-   hood) rather than [lsl] on a plain [int]: js_of_ocaml's native ints are
-   32-bit, so [1000 lsl i] wraps for i >= 22 in the browser, where clients
-   deserialize this type to label buckets. [1 lsl i] itself stays well
-   within 32 bits (i <= 24). *)
+(* Boundaries are computed with [scale_int] (Int63 arithmetic under the hood)
+   rather than [lsl] on a plain [int]: js_of_ocaml's native ints are 32-bit,
+   so [1000 lsl i] wraps for i >= 22 in the browser, where clients
+   deserialize this type to label buckets. [1 lsl i] itself stays well within
+   32 bits (i <= 24). *)
 let bucket_boundaries =
   Array.init (num_buckets - 1) ~f:(fun i ->
-    Time_ns.Span.scale_int
-      (Time_ns.Span.of_int_ns base_boundary_ns)
-      (1 lsl i))
+    Time_ns.Span.scale_int (Time_ns.Span.of_int_ns base_boundary_ns) (1 lsl i))
 ;;
 
 type t = { counts : int array } [@@deriving bin_io, equal]
