@@ -118,7 +118,6 @@ let on_tick (config : Config.t) (context : Context.t) =
       let time_in_force = if is_ioc then Time_in_force.Ioc else Day in
       let request : Order.Request.t =
         { symbol
-        ; participant = Context.participant context
         ; side
         ; price
         ; size = Size.of_int size

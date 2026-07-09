@@ -65,7 +65,6 @@ let make_request (config : Config.t) context ~client_order_id
   let is_marketable = Bot_random.does_occur rng marketable_chance in
   let price = choose_price config context ~symbol ~side ~is_marketable in
   { symbol
-  ; participant = Context.participant context
   ; side
   ; price
   ; size = Size.of_int config.size

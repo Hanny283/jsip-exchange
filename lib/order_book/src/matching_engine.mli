@@ -16,10 +16,11 @@ val create : Symbol.t list -> t
 
 (** {2 Order submission} *)
 
-(** Submit a new order request. Returns the list of exchange events produced:
-    an acceptance or rejection, followed by any fills, and possibly a
-    cancellation of unfilled remainder (for IOC orders, or when the order
-    would have self-traded).
+(** Submit a new order request on behalf of [participant] — the identity the
+    gateway authenticated at login, not anything the client wrote in the
+    request. Returns the list of exchange events produced: an acceptance or
+    rejection, followed by any fills, and possibly a cancellation of unfilled
+    remainder (for IOC orders, or when the order would have self-traded).
 
     Self-trade prevention: an order never fills against a resting order from
     the same participant. If the next candidate match belongs to the
@@ -34,7 +35,11 @@ val create : Symbol.t list -> t
 
     The event list is always non-empty (at minimum an acceptance or
     rejection). *)
-val submit : t -> Order.Request.t -> Exchange_event.t list
+val submit
+  :  t
+  -> Order.Request.t
+  -> participant:Participant.t
+  -> Exchange_event.t list
 
 (** {2 Cancellation} *)
 

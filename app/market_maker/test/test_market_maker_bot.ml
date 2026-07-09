@@ -102,7 +102,11 @@ let accept_all bot submitted =
     ~f:(fun request ->
       Bot_runtime.feed_event
         bot
-        (Order_accept { order_id = Order_id.For_testing.of_int 0; request }))
+        (Order_accept
+           { order_id = Order_id.For_testing.of_int 0
+           ; participant = alice
+           ; request
+           }))
 ;;
 
 let%expect_test "on_start posts a symmetric ladder around fair value" =

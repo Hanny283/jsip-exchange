@@ -45,7 +45,6 @@ let place_ladder (config : Config.t) ctx =
     let request : Order.Request.t =
       { client_order_id
       ; symbol = config.symbol
-      ; participant = Bot_runtime.Context.participant ctx
       ; side
       ; price = Price.of_int_cents price_cents
       ; size = Size.of_int config.size_per_level

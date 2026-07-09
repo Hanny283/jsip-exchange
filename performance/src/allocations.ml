@@ -7,7 +7,9 @@ module Build_list = struct
 
   (* Prepend (O(1) per step) then reverse once -> O(n) allocation. Same
      result. *)
-  let non_silly xs = List.fold xs ~init:[] ~f:(fun acc x -> x :: acc) |> List.rev
+  let non_silly xs =
+    List.fold xs ~init:[] ~f:(fun acc x -> x :: acc) |> List.rev
+  ;;
 end
 
 module First_match = struct

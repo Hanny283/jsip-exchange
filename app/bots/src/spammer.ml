@@ -134,7 +134,6 @@ let random_request (config : Config.t) context rng =
   in
   ({ client_order_id = Client_order_id.Generator.next config.generator
    ; symbol
-   ; participant = Context.participant context
    ; side
    ; price
    ; size

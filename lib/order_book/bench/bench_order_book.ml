@@ -55,7 +55,6 @@ let book_with_n_asks ?(min_price = 10_000) n =
     let order =
       Order.create
         { symbol = aapl
-        ; participant = bob
         ; side = Sell
         ; price = Price.of_int_cents (min_price + i)
         ; size = Size.of_int 100
@@ -63,10 +62,37 @@ let book_with_n_asks ?(min_price = 10_000) n =
         ; client_order_id = Client_order_id.of_string (Int.to_string i)
         }
         ~order_id:(Order_id.Generator.next gen)
+        ~participant:bob
     in
     Order_book.add book order
   done;
   book, gen
+;;
+
+(** Build a book with [n] resting sell orders all at the SAME price. Unlike
+    {!book_with_n_asks}, which spreads orders across distinct prices (one
+    order per level), this stacks the whole book into a single price level.
+    That is the case [snapshot] must aggregate — summing [n] remaining sizes
+    into one [Level.t] — so it's what makes the aggregation cost visible. *)
+let book_with_n_asks_same_price ?(price = 15_000) n =
+  let book = Order_book.create aapl in
+  let gen = Order_id.Generator.create () in
+  for i = 1 to n do
+    let order =
+      Order.create
+        { symbol = aapl
+        ; side = Sell
+        ; price = Price.of_int_cents price
+        ; size = Size.of_int 100
+        ; time_in_force = Day
+        ; client_order_id = Client_order_id.of_string (Int.to_string i)
+        }
+        ~order_id:(Order_id.Generator.next gen)
+        ~participant:bob
+    in
+    Order_book.add book order
+  done;
+  book
 ;;
 
 (** Build a matching engine with [n] resting sells on AAPL. *)
@@ -77,13 +103,13 @@ let engine_with_n_asks ?(min_price = 10_000) n =
       (Matching_engine.submit
          engine
          { symbol = aapl
-         ; participant = bob
          ; side = Sell
          ; price = Price.of_int_cents (min_price + i)
          ; size = Size.of_int 100
          ; time_in_force = Day
          ; client_order_id = Client_order_id.of_string (Int.to_string i)
          }
+         ~participant:bob
        : Exchange_event.t list)
   done;
   engine
@@ -100,7 +126,6 @@ let bench_find_match ~n =
   let incoming =
     Order.create
       { symbol = aapl
-      ; participant = alice
       ; side = Buy
       ; price = Price.of_int_cents (min_price + n)
       ; size = Size.of_int 100
@@ -108,6 +133,7 @@ let bench_find_match ~n =
       ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
+      ~participant:alice
   in
   Bench.Test.create ~name:[%string "find_match (n=%{n#Int})"] (fun () ->
     ignore (Order_book.find_match book incoming : Order.t option))
@@ -120,7 +146,6 @@ let bench_find_match_no_cross ~n =
   let incoming =
     Order.create
       { symbol = aapl
-      ; participant = alice
       ; side = Buy
       ; price = Price.of_int_cents (min_price - 1)
       ; size = Size.of_int 100
@@ -128,6 +153,7 @@ let bench_find_match_no_cross ~n =
       ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
+      ~participant:alice
   in
   Bench.Test.create ~name:[%string "find_match_miss (n=%{n#Int})"] (fun () ->
     ignore (Order_book.find_match book incoming : Order.t option))
@@ -146,7 +172,6 @@ let bench_add_remove ~n =
   let order =
     Order.create
       { symbol = aapl
-      ; participant = alice
       ; side = Sell
       ; price = Price.of_int_cents (min_price + 500)
       ; size = Size.of_int 100
@@ -154,11 +179,25 @@ let bench_add_remove ~n =
       ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
+      ~participant:alice
   in
   let oid = Order.order_id order in
   Bench.Test.create ~name:[%string "add+remove (n=%{n#Int})"] (fun () ->
     Order_book.add book order;
     Order_book.remove book oid)
+;;
+
+(* ---------------------------------------------------------------- *)
+(* Snapshot benchmarks *)
+(* ---------------------------------------------------------------- *)
+
+let bench_snapshot ~n =
+  (* Time a full-book snapshot over [n] orders stacked at one price. This
+     exercises the aggregation path in [snapshot_side]: [n] orders collapse
+     into a single [Level.t] whose size is the sum of their remaining sizes. *)
+  let book = book_with_n_asks_same_price n in
+  Bench.Test.create ~name:[%string "snapshot (n=%{n#Int})"] (fun () ->
+    ignore (Order_book.snapshot book : Book.t))
 ;;
 
 (* ---------------------------------------------------------------- *)
@@ -180,13 +219,13 @@ let bench_submit_ioc_cross ~n =
          Matching_engine.submit
            engine
            { symbol = aapl
-           ; participant = alice
            ; side = Buy
            ; price = Price.of_int_cents max_price
            ; size = Size.of_int 100
            ; time_in_force = Ioc
            ; client_order_id = Client_order_id.of_string (Int.to_string 1)
            }
+           ~participant:alice
        in
        ignore (events : Exchange_event.t list);
        (* Re-seed: add back a resting sell to replace the one we consumed *)
@@ -194,13 +233,13 @@ let bench_submit_ioc_cross ~n =
          (Matching_engine.submit
             engine
             { symbol = aapl
-            ; participant = bob
             ; side = Sell
             ; price = Price.of_int_cents !next_price
             ; size = Size.of_int 100
             ; time_in_force = Day
             ; client_order_id = Client_order_id.of_string (Int.to_string 1)
             }
+            ~participant:bob
           : Exchange_event.t list);
        next_price := !next_price + 1;
        if !next_price > max_price then next_price := min_price + 1)
@@ -214,13 +253,13 @@ let bench_submit_ioc_no_match ~n =
       (Matching_engine.submit
          engine
          { symbol = aapl
-         ; participant = alice
          ; side = Buy
          ; price = Price.of_int_cents (min_price - 1)
          ; size = Size.of_int 100
          ; time_in_force = Ioc
          ; client_order_id = Client_order_id.of_string (Int.to_string 1)
          }
+         ~participant:alice
        : Exchange_event.t list))
 ;;
 
@@ -234,13 +273,13 @@ let bench_submit_sweep ~n =
       (Matching_engine.submit
          !engine
          { symbol = aapl
-         ; participant = alice
          ; side = Buy
          ; price = Price.of_int_cents 99_999
          ; size = Size.of_int (n * 100)
          ; time_in_force = Ioc
          ; client_order_id = Client_order_id.of_string (Int.to_string 1)
          }
+         ~participant:alice
        : Exchange_event.t list);
     (* Re-seed entire book *)
     engine := engine_with_n_asks n)
@@ -256,7 +295,6 @@ let bench_find_match_alloc ~n =
   let incoming =
     Order.create
       { symbol = aapl
-      ; participant = alice
       ; side = Buy
       ; price = Price.of_int_cents (min_price + n)
       ; size = Size.of_int 100
@@ -264,6 +302,7 @@ let bench_find_match_alloc ~n =
       ; client_order_id = Client_order_id.of_string (Int.to_string 1)
       }
       ~order_id:(Order_id.Generator.next gen)
+      ~participant:alice
   in
   (* Measure minor-heap allocations *)
   let measure_alloc f =
@@ -286,11 +325,44 @@ let bench_find_match_alloc ~n =
 ;;
 
 (* ---------------------------------------------------------------- *)
+(* Symbol lookup (Matching_engine.book) benchmarks *)
+(* ---------------------------------------------------------------- *)
+
+(* The engine holds one order book per symbol and resolves a symbol to its
+   book on every operation. [book] is the pure lookup path — no matching work
+   — so it isolates that resolution cost. [submit]/[cancel] resolve a symbol
+   too, but then do matching, which would bury the lookup; that's why we
+   bench [book] alone. Vary the number of symbols the engine trades to see
+   how the lookup scales: with a tree keyed by the symbol string it's
+   O(log n) string comparisons; the goal of the upcoming interning change is
+   to make it O(1). *)
+
+let symbol_name i = Symbol.of_string [%string "SYM%{i#Int}"]
+
+let engine_with_n_symbols n =
+  Matching_engine.create (List.init n ~f:symbol_name)
+;;
+
+let bench_book_lookup ~n =
+  let engine = engine_with_n_symbols n in
+  (* Resolve a symbol that exists, taken from the middle of the set. Build
+     the query with a FRESH [Symbol.of_string] (not the value handed to
+     [create]) so the comparison actually walks the string's characters
+     instead of short-circuiting on physical equality. *)
+  let target = symbol_name (n / 2) in
+  Bench.Test.create
+    ~name:[%string "book_lookup (symbols=%{n#Int})"]
+    (fun () ->
+       ignore (Matching_engine.book engine target : Order_book.t option))
+;;
+
+(* ---------------------------------------------------------------- *)
 (* Main *)
 (* ---------------------------------------------------------------- *)
 
 let () =
   let sizes = [ 10; 50; 100; 500 ] in
+  let symbol_counts = [ 10; 100; 1_000; 10_000 ] in
   let tests =
     List.concat
       [ (* Order book micro-benchmarks at various sizes *)
@@ -306,5 +378,15 @@ let () =
         [ bench_find_match_alloc ~n:100 ]
       ]
   in
-  Command_unix.run (Bench.make_command tests)
+  Command_unix.run
+    (Command.group
+       ~summary:"JSIP order-book benchmarks"
+       [ "existing", Bench.make_command tests
+       ; ( "snapshot"
+         , Bench.make_command
+             (List.map sizes ~f:(fun n -> bench_snapshot ~n)) )
+       ; ( "book-lookup"
+         , Bench.make_command
+             (List.map symbol_counts ~f:(fun n -> bench_book_lookup ~n)) )
+       ])
 ;;

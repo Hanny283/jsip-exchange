@@ -5,8 +5,8 @@ open Jsip_gateway
 (* Render the result of [Exchange_command.parse] for expect tests. [Submit]
    is printed via [Order.Request.to_string] so order-parsing cases read the
    same as the old [Protocol.parse_command] tests they were migrated from. *)
-let print_parse ?default_participant line =
-  match Exchange_command.parse ?default_participant line with
+let print_parse line =
+  match Exchange_command.parse line with
   | Error err -> print_endline [%string "ERROR: %{Error.to_string_hum err}"]
   | Ok (Exchange_command.Submit req) ->
     print_endline [%string "%{req#Order.Request}"]
@@ -18,20 +18,19 @@ let print_parse ?default_participant line =
 ;;
 
 (* --- BUY/SELL: successful parsing --- *)
-(* The command grammar is now
+(* The command grammar is
    [BUY|SELL <client_id> <symbol> <size> <price> [DAY|IOC]]. Identity comes
-   from the login handshake, so there is no [as <name>] clause; the
-   participant shown below is the [default_participant] (or "anonymous" when
-   none is supplied). *)
+   from the login handshake, so the parsed request carries no participant at
+   all. *)
 
 let%expect_test "parse: basic buy" =
   print_parse "BUY 1 AAPL 100 150.25";
-  [%expect {| BUY 1 AAPL 100@$150.25 DAY as anonymous |}]
+  [%expect {| BUY 1 AAPL 100@$150.25 DAY |}]
 ;;
 
 let%expect_test "parse: basic sell" =
   print_parse "SELL 2 TSLA 50 200.00";
-  [%expect {| SELL 2 TSLA 50@$200.00 DAY as anonymous |}]
+  [%expect {| SELL 2 TSLA 50@$200.00 DAY |}]
 ;;
 
 let%expect_test "parse: case insensitive side" =
@@ -39,14 +38,14 @@ let%expect_test "parse: case insensitive side" =
   print_parse "Buy 2 AAPL 100 150.00";
   [%expect
     {|
-    BUY 1 AAPL 100@$150.00 DAY as anonymous
-    BUY 2 AAPL 100@$150.00 DAY as anonymous
+    BUY 1 AAPL 100@$150.00 DAY
+    BUY 2 AAPL 100@$150.00 DAY
     |}]
 ;;
 
 let%expect_test "parse: with IOC time-in-force" =
   print_parse "BUY 1 AAPL 100 150.00 IOC";
-  [%expect {| BUY 1 AAPL 100@$150.00 IOC as anonymous |}]
+  [%expect {| BUY 1 AAPL 100@$150.00 IOC |}]
 ;;
 
 let%expect_test "parse: time-in-force is case insensitive" =
@@ -54,29 +53,29 @@ let%expect_test "parse: time-in-force is case insensitive" =
   print_parse "SELL 2 AAPL 200 151.00 day";
   [%expect
     {|
-    BUY 1 AAPL 100@$150.00 IOC as anonymous
-    SELL 2 AAPL 200@$151.00 DAY as anonymous
+    BUY 1 AAPL 100@$150.00 IOC
+    SELL 2 AAPL 200@$151.00 DAY
     |}]
 ;;
 
 let%expect_test "parse: with explicit DAY" =
   print_parse "SELL 1 AAPL 200 151.00 DAY";
-  [%expect {| SELL 1 AAPL 200@$151.00 DAY as anonymous |}]
+  [%expect {| SELL 1 AAPL 200@$151.00 DAY |}]
 ;;
 
 let%expect_test "parse: symbol case is preserved" =
   print_parse "BUY 1 aapl 100 150.00";
-  [%expect {| BUY 1 aapl 100@$150.00 DAY as anonymous |}]
+  [%expect {| BUY 1 aapl 100@$150.00 DAY |}]
 ;;
 
 let%expect_test "parse: extra whitespace is ignored" =
   print_parse "  BUY   1   AAPL   100   150.00  ";
-  [%expect {| BUY 1 AAPL 100@$150.00 DAY as anonymous |}]
+  [%expect {| BUY 1 AAPL 100@$150.00 DAY |}]
 ;;
 
 let%expect_test "parse: price with dollar sign" =
   print_parse "BUY 1 AAPL 100 $150.25";
-  [%expect {| BUY 1 AAPL 100@$150.25 DAY as anonymous |}]
+  [%expect {| BUY 1 AAPL 100@$150.25 DAY |}]
 ;;
 
 (* --- CANCEL --- *)
@@ -123,20 +122,6 @@ let%expect_test "parse: subscribe is case insensitive on the verb" =
     SUBSCRIBE AAPL
     SUBSCRIBE TSLA
     |}]
-;;
-
-(* --- default participant override --- *)
-
-let%expect_test "default participant: used when no name is supplied" =
-  let default_participant = Participant.of_string "DefaultTrader" in
-  print_parse ~default_participant "BUY 1 AAPL 100 150.00";
-  [%expect {| BUY 1 AAPL 100@$150.00 DAY as DefaultTrader |}]
-;;
-
-let%expect_test "default participant: applies with an explicit TIF too" =
-  let default_participant = Participant.of_string "DefaultTrader" in
-  print_parse ~default_participant "SELL 1 AAPL 50 151.00 IOC";
-  [%expect {| SELL 1 AAPL 50@$151.00 IOC as DefaultTrader |}]
 ;;
 
 (* --- Parse errors --- *)

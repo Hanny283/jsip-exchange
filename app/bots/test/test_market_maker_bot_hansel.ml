@@ -48,6 +48,7 @@ let accept_all bot submitted =
          { order_id =
              Order_id.For_testing.of_int
                (Client_order_id.to_int request.client_order_id)
+         ; participant = alice
          ; request
          }))
 ;;

@@ -142,7 +142,6 @@ let on_tick (config : Config.t) context =
     let request : Order.Request.t =
       { client_order_id = Client_order_id.Generator.next config.generator
       ; symbol
-      ; participant = Context.participant context
       ; side
       ; price
       ; size

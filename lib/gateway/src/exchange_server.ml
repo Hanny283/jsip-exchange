@@ -7,7 +7,10 @@ open Jsip_order_book
    single ordered queue so the engine processes them strictly in arrival
    order, regardless of which client (or which RPC) produced them. *)
 type command =
-  | Submit of Order.Request.t
+  | Submit of
+      { participant : Participant.t
+      ; request : Order.Request.t
+      }
   | Cancel of
       { participant : Participant.t
       ; client_order_id : Client_order_id.t
@@ -63,7 +66,8 @@ let start_matching_loop ~engine ~dispatcher ~collector request_reader =
            ~now:(Time_ns.now ());
          let events =
            match command with
-           | Submit request -> Matching_engine.submit engine request
+           | Submit { participant; request } ->
+             Matching_engine.submit engine request ~participant
            | Cancel { participant; client_order_id } ->
              Matching_engine.cancel engine ~participant ~client_order_id
          in
@@ -147,12 +151,14 @@ let start
                | None ->
                  Deferred.return (Or_error.error_string "not logged in")
                | Some session ->
-                 (* Identity comes from the login, not the request, so a
-                    logged-in client can't submit on behalf of someone else. *)
+                 (* Identity comes from the login, not the request — the wire
+                    request carries no participant at all, so a client can't
+                    submit on behalf of someone else. *)
                  let participant = Session.participant session in
-                 let (rq : Order.Request.t) = { request with participant } in
                  Stats_collector.incr_orders_submitted collector participant;
-                 enqueue ~request_writer { command = Submit rq; received_at })
+                 enqueue
+                   ~request_writer
+                   { command = Submit { participant; request }; received_at })
         ; Rpc.Rpc.implement'
             Rpc_protocol.book_query_rpc
             (fun _state symbol ->

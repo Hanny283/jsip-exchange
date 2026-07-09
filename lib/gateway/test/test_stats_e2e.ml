@@ -104,7 +104,6 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
           between steps guarantee the matching loop processed each command. *)
        let sell_to_cross : Order.Request.t =
          { symbol = Harness.aapl
-         ; participant = Harness.bob
          ; side = Sell
          ; price = Price.of_int_cents 15000
          ; size = Size.of_int 100
@@ -127,7 +126,6 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
           there is book depth left to report at sampling time. *)
        let crossing_buy : Order.Request.t =
          { symbol = Harness.aapl
-         ; participant = Harness.alice
          ; side = Buy
          ; price = Price.of_int_cents 15000
          ; size = Size.of_int 150

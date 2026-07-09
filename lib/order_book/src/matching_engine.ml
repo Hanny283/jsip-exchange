@@ -2,7 +2,7 @@ open! Core
 open Jsip_types
 
 type t =
-  { books : Order_book.t Symbol.Map.t
+  { books : Order_book.t Symbol.Table.t
   ; order_id_gen : Order_id.Generator.t
   ; mutable next_fill_id : int
   ; client_orders : Order.t Client_order_id.Table.t Participant.Table.t
@@ -12,7 +12,7 @@ type t =
 let create symbols =
   let books =
     List.map symbols ~f:(fun sym -> sym, Order_book.create sym)
-    |> Symbol.Map.of_alist_exn
+    |> Symbol.Table.of_alist_exn
   in
   { books
   ; order_id_gen = Order_id.Generator.create ()
@@ -21,7 +21,7 @@ let create symbols =
   }
 ;;
 
-let book t symbol = Map.find t.books symbol
+let book t symbol = Hashtbl.find t.books symbol
 
 (** Run the matching loop: repeatedly find a compatible resting order and
     fill against it. Returns the list of Fill and Trade_report events
@@ -76,38 +76,41 @@ let rec match_loop ~book ~order ~fill_id =
       fill_event :: trade_event :: remaining_events, next_fill_id, self_trade)
 ;;
 
-let submit t (request : Order.Request.t) =
+let submit t (request : Order.Request.t) ~participant =
   (* Reject nonsensical prices up front (a cheap, request-only check) so no
      order can rest at a non-positive price and corrupt the book — otherwise
      a bot whose price arithmetic runs negative (e.g. a market maker skewing
      hard on a large inventory) plants a negative best bid. *)
   if Price.( <= ) request.price Price.zero
   then
-    [ Exchange_event.Order_reject { request; reason = "non-positive price" }
+    [ Exchange_event.Order_reject
+        { participant; request; reason = "non-positive price" }
     ]
   else (
-    match Map.find t.books request.symbol with
+    match Hashtbl.find t.books request.symbol with
     | None ->
-      [ Exchange_event.Order_reject { request; reason = "unknown symbol" } ]
+      [ Exchange_event.Order_reject
+          { participant; request; reason = "unknown symbol" }
+      ]
     | Some book ->
       let client_orders =
-        Hashtbl.find_or_add
-          t.client_orders
-          request.participant
-          ~default:(fun () -> Client_order_id.Table.create ())
+        Hashtbl.find_or_add t.client_orders participant ~default:(fun () ->
+          Client_order_id.Table.create ())
       in
       (match Hashtbl.find client_orders request.client_order_id with
        | Some _ ->
          (* The client has already used this id; reject rather than accept a
             second order under the same handle. *)
          [ Exchange_event.Order_reject
-             { request; reason = "duplicate client order id" }
+             { participant; request; reason = "duplicate client order id" }
          ]
        | None ->
          let order_id = Order_id.Generator.next t.order_id_gen in
-         let order = Order.create request ~order_id in
+         let order = Order.create request ~order_id ~participant in
          Hashtbl.set client_orders ~key:request.client_order_id ~data:order;
-         let accepted = Exchange_event.Order_accept { order_id; request } in
+         let accepted =
+           Exchange_event.Order_accept { order_id; participant; request }
+         in
          (* Snapshot BBO before matching so we can detect changes. *)
          let bbo_before = Order_book.best_bid_offer book in
          (* Match *)
@@ -169,7 +172,7 @@ let cancel t ~participant ~client_order_id =
     ]
   | Some order ->
     let symbol = Order.symbol order in
-    (match Map.find t.books symbol with
+    (match Hashtbl.find t.books symbol with
      | None ->
        [ Exchange_event.Cancel_reject
            { participant; client_order_id; reason = "order not found" }

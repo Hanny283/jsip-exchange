@@ -13,7 +13,6 @@ let make_order
   =
   Order.create
     ({ symbol = Harness.aapl
-     ; participant
      ; side
      ; price = Price.of_int_cents price_cents
      ; size = Size.of_int size
@@ -22,6 +21,7 @@ let make_order
      }
      : Order.Request.t)
     ~order_id:(Order_id.For_testing.of_int order_id)
+    ~participant
 ;;
 
 (* --- add / find / remove --- *)
@@ -282,6 +282,110 @@ let%expect_test "snapshot lists levels in price-time priority order" =
         $150.10 x100
         $150.15 x100
       BBO: $150.00 x100 / $150.05 x100
+    |}]
+;;
+
+let%expect_test "snapshot aggregates same-price orders into one level" =
+  let book = Order_book.create Harness.aapl in
+  (* Three bids and two asks share a price each; the snapshot should collapse
+     each run into a single level whose size is the sum of remaining sizes. *)
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~size:100 ~order_id:1 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~size:250 ~order_id:2 ());
+  Order_book.add
+    book
+    (make_order ~side:Buy ~price_cents:15000 ~size:50 ~order_id:3 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15010 ~size:300 ~order_id:4 ());
+  Order_book.add
+    book
+    (make_order ~side:Sell ~price_cents:15010 ~size:75 ~order_id:5 ());
+  print_endline (Order_book.snapshot book |> Book.to_string);
+  (* One bid level at 400 (100+250+50), one ask level at 375 (300+75). *)
+  [%expect
+    {|
+    === AAPL ===
+      BIDS:
+        $150.00 x400
+      ASKS:
+        $150.10 x375
+      BBO: $150.00 x400 / $150.10 x375
+    |}]
+;;
+
+let%expect_test "snapshot aggregates across participants at one price" =
+  let book = Order_book.create Harness.aapl in
+  (* Three different participants rest at the SAME bid price, and two at the
+     same ask price. Aggregation is by price, not by participant, so each
+     side must collapse to exactly one level. Printing the level count
+     alongside the book guards against a regression to one-level-per-order:
+     that would report 3 bid levels / 2 ask levels here and fail this test. *)
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:15000
+       ~size:100
+       ~participant:Harness.alice
+       ~order_id:1
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:15000
+       ~size:200
+       ~participant:Harness.bob
+       ~order_id:2
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Buy
+       ~price_cents:15000
+       ~size:300
+       ~participant:Harness.charlie
+       ~order_id:3
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Sell
+       ~price_cents:15010
+       ~size:150
+       ~participant:Harness.alice
+       ~order_id:4
+       ());
+  Order_book.add
+    book
+    (make_order
+       ~side:Sell
+       ~price_cents:15010
+       ~size:250
+       ~participant:Harness.bob
+       ~order_id:5
+       ());
+  let book_view = Order_book.snapshot book in
+  print_s
+    [%message
+      ""
+        ~bid_levels:(List.length book_view.bids : int)
+        ~ask_levels:(List.length book_view.asks : int)];
+  print_endline (Book.to_string book_view);
+  (* One bid level at 600 (100+200+300), one ask level at 400 (150+250). *)
+  [%expect
+    {|
+    ((bid_levels 1) (ask_levels 1))
+    === AAPL ===
+      BIDS:
+        $150.00 x600
+      ASKS:
+        $150.10 x400
+      BBO: $150.00 x600 / $150.10 x400
     |}]
 ;;
 

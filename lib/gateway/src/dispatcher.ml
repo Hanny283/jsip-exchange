@@ -123,9 +123,9 @@ let dispatch_event t (event : Exchange_event.t) =
     push_market_data t event symbol
   | Trade_report { symbol; price = _; size = _ } ->
     push_market_data t event symbol
-  | Order_accept { order_id = _; request }
-  | Order_reject { request; reason = _ } ->
-    push_to_session t request.participant event
+  | Order_accept { order_id = _; participant; request = _ }
+  | Order_reject { participant; request = _; reason = _ } ->
+    push_to_session t participant event
   | Order_cancel
       { order_id = _
       ; participant

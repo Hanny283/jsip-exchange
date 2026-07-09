@@ -97,7 +97,6 @@ let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread
         Context.submit
           context
           ({ symbol
-           ; participant = Context.participant context
            ; side = Buy
            ; price = Price.of_int_cents (skewed_fair - offset)
            ; size = Size.of_int config.size_per_level
@@ -110,7 +109,6 @@ let place_ladder (config : Config.t) context symbol ~skewed_fair ~half_spread
         Context.submit
           context
           ({ symbol
-           ; participant = Context.participant context
            ; side = Sell
            ; price = Price.of_int_cents (skewed_fair + offset)
            ; size = Size.of_int config.size_per_level

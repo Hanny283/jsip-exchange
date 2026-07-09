@@ -179,7 +179,6 @@ let submit_clip (config : Config.t) context ~side ~size =
   let request : Order.Request.t =
     { client_order_id = Client_order_id.Generator.next config.generator
     ; symbol = config.target_symbol
-    ; participant = Context.participant context
     ; side
     ; price = clip_price config context ~side rng
     ; size = Size.of_int size

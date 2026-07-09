@@ -69,7 +69,6 @@ let make_order (config : Config.t) context ~symbol ~index : Order.Request.t =
   in
   { client_order_id = fresh_client_order_id config
   ; symbol
-  ; participant = Context.participant context
   ; side
   ; price = Price.of_int_cents price_cents
   ; size = Size.of_int config.order_size

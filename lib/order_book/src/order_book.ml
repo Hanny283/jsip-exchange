@@ -134,46 +134,44 @@ let count t side =
     acc + Queue.length value)
 ;;
 
+(* A level's size is the total shares resting at that price — the sum of
+   every order's remaining size — not the number of orders. *)
+let level_size q =
+  Queue.sum (module Int) q ~f:(fun order ->
+    Size.to_int (Order.remaining_size order))
+  |> Size.of_int
+;;
+
 let best_level t side : Level.t option =
   let side_levels = side_levels t side in
   match best_price t side with
   | None -> None
   | Some price ->
-    (* The level's size is the total shares resting at that price — the sum
-       of every order's remaining size — not the number of orders. *)
-    let total_size =
+    let size =
       match Map.find side_levels price with
-      | None -> 0
-      | Some q ->
-        Queue.fold q ~init:0 ~f:(fun acc order ->
-          acc + Size.to_int (Order.remaining_size order))
+      | None -> Size.of_int 0
+      | Some q -> level_size q
     in
-    Some { price; size = Size.of_int total_size }
+    Some { price; size }
 ;;
 
 let best_bid_offer t : Bbo.t =
   { bid = best_level t Buy; ask = best_level t Sell }
 ;;
 
-(* Sort the underlying orders by price-time priority first, then project to
-   levels. Sorting [Level.t]s directly would lose arrival time, since a level
-   carries only price and size. *)
+(* Each map entry is already one price level: the queue of every order
+   resting at that price. So aggregating is just summing the queue's
+   remaining sizes, and the map's key ordering gives us level ordering for
+   free — no sort. Asks want lowest price first, which is the map's natural
+   ascending order; bids want highest first, so we walk the keys in
+   decreasing order. [find_match] visits levels most-aggressive-first, and
+   this matches it. *)
 let snapshot_side t (side : Side.t) =
-  let compare resting1 resting2 =
-    let price1 = Order.price resting1 in
-    let price2 = Order.price resting2 in
-    let id1 = Order.order_id resting1 in
-    let id2 = Order.order_id resting2 in
-    if not (Price.( = ) price1 price2)
-    then
-      (* Most aggressive first: highest bids / lowest asks lead the snapshot,
-         matching the order [find_match] visits them. *)
-      if Price.is_more_aggressive side ~price:price1 ~than:price2
-      then -1
-      else 1
-    else [%compare: Order_id.t] id1 id2
+  let key_order =
+    match side with Buy -> `Decreasing | Sell -> `Increasing
   in
-  orders_on_side t side |> List.sort ~compare |> List.map ~f:Level.of_order
+  Map.to_alist ~key_order (side_levels t side)
+  |> List.map ~f:(fun (price, q) -> { Level.price; size = level_size q })
 ;;
 
 let snapshot t =

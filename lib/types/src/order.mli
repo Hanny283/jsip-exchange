@@ -8,11 +8,15 @@
 open! Core
 
 (** An order as submitted by a participant (before the exchange assigns an
-    order ID). This is what the gateway receives. *)
+    order ID). This is what the gateway receives.
+
+    Deliberately, a request carries no participant: identity is established
+    once at login and stamped onto the submission server-side (see
+    {!Jsip_gateway.Exchange_server}), so a client cannot submit on behalf of
+    someone else. *)
 module Request : sig
   type t =
     { symbol : Symbol.t
-    ; participant : Participant.t
     ; side : Side.t
     ; price : Price.t
     ; size : Size.t (** Number of shares/units. Must be positive. *)
@@ -32,10 +36,15 @@ val to_string : t -> string
 
 (** {2 Construction} *)
 
-(** Create a live order from a request and an assigned order ID. The
+(** Create a live order from a request, an assigned order ID, and the
+    [participant] the gateway authenticated for this submission. The
     [remaining_size] starts equal to the request's [size]. Raises if the
     request's [size] is non-positive. *)
-val create : Request.t -> order_id:Order_id.t -> t
+val create
+  :  Request.t
+  -> order_id:Order_id.t
+  -> participant:Participant.t
+  -> t
 
 (** {2 Accessors} *)
 

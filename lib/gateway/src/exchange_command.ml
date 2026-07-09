@@ -49,7 +49,7 @@ let parse_cancel parts =
   | [] -> Or_error.error_string "Bug: Impossible Case"
 ;;
 
-let parse_buy_or_sell ?default_participant parts side =
+let parse_buy_or_sell parts side =
   match parts with
   | client_order_id_str :: symbol_str :: size_str :: price_str :: rest ->
     let open Result.Let_syntax in
@@ -105,14 +105,8 @@ let parse_buy_or_sell ?default_participant parts side =
         Or_error.error_string
           [%string "unexpected trailing arguments: %{trailing}"]
     in
-    let participant =
-      Option.value
-        default_participant
-        ~default:(Participant.of_string "anonymous")
-    in
     Ok
       ({ symbol
-       ; participant
        ; side
        ; price
        ; size = Size.of_int size
@@ -128,7 +122,7 @@ let parse_buy_or_sell ?default_participant parts side =
        ^ "]")
 ;;
 
-let parse ?default_participant command =
+let parse command =
   let delimeter = ' ' in
   let command = String.split ~on:delimeter (String.strip command) in
   match command with
@@ -148,11 +142,11 @@ let parse ?default_participant command =
       | Ok Buy ->
         Or_error.map
           ~f:(fun element -> Submit element)
-          (parse_buy_or_sell ?default_participant parts Buy)
+          (parse_buy_or_sell parts Buy)
       | Ok Sell ->
         Or_error.map
           ~f:(fun element -> Submit element)
-          (parse_buy_or_sell ?default_participant parts Sell)
+          (parse_buy_or_sell parts Sell)
       | Ok Book ->
         Or_error.map
           ~f:(fun element -> Book element)
@@ -164,35 +158,3 @@ let parse ?default_participant command =
       | Ok Cancel ->
         Or_error.map ~f:(fun element -> Cancel element) (parse_cancel parts))
 ;;
-
-(* let parse_command line = let line = String.strip line in if
-   String.is_empty line then Or_error.error_string"empty command" else ( let
-   parts = String.split line ~on:' ' |> List.filter ~f:(Fn.non
-   String.is_empty) in match parts with | [] -> Or_error.error_string"empty
-   command" | side_str :: rest -> let open Result.Let_syntax in let%bind side
-   = match String.uppercase side_str with | "BUY" -> Ok Side.Buy | "SELL" ->
-   Ok Side.Sell | other ->
-   Or_error.error_string[%string "unknown command: %{other} (expected BUY or SELL)"]
-   in (match rest with | symbol_str :: size_str :: price_str :: rest ->
-   let%bind size = match Int.of_string_opt size_str with | Some n when n > 0
-   -> Ok n | Some _ -> Or_error.error_string"size must be positive" | None ->
-   Or_error.error_string[%string "invalid size: %{size_str}"] in let%bind
-   price = try Ok (Price.of_string price_str) with | exn -> let exn_str =
-   Exn.to_string exn in Or_error.error_string
-   [%string "invalid price: %{price_str}\nexception: %{exn_str}"] in let%bind
-   symbol = try Ok (Symbol.of_string symbol_str) with | exn -> let exn_str =
-   Exn.to_string exn in Or_error.error_string
-   [%string "invalid symbol: %{symbol_str}\nexception: %{exn_str}"] in
-   let%bind time_in_force, rest = match rest with | tif_str :: rest' -> if
-   List.mem (Time_in_force.of_string tif_str) Time_in_force.all then Ok
-   (Time_in_force.of_string tif_str, rest') else Or_error.error_string
-   [%string "unknown time-in-force: %{tif_str} %{Time_in_force.all_str}"]) |
-   [] -> Ok (Day, []) in let%bind participant = match rest with | "as" ::
-   name :: _ | "AS" :: name :: _ -> Ok (Participant.of_string name) | [] ->
-   Ok default_participant | _ -> let trailing = String.concat ~sep:" " rest
-   in
-   Or_error.error_string[%string "unexpected trailing arguments: %{trailing}"]
-   in Ok
-   ([{ symbol ; participant ; side ; price ; size = Size.of_int size ; time_in_force }]
-   : Order.Request.t) | _ -> Or_error.error_string "expected: BUY|SELL
-   <symbol> <size> <price> [DAY|IOC] [as <name>]") ;; *)

@@ -1,28 +1,18 @@
 (** Text protocol for communicating with the exchange.
 
-    This module defines how order requests are represented as text and how
-    exchange events are formatted for display. On a production exchange, this
-    would be a binary protocol like FIX for performance and interoperability.
-    We use a simple human-readable text format for ease of debugging and
-    interactive use.
+    This module defines how exchange events are formatted for display. On a
+    production exchange, this would be a binary protocol like FIX for
+    performance and interoperability. We use a simple human-readable text
+    format for ease of debugging and interactive use.
 
-    {2 Command format}
-
-    Each command is a single line of text:
+    Command {e parsing} lives in {!Exchange_command}; the grammar is
     {v
-    BUY  <symbol> <size> <price> [<time_in_force>] [as <participant>]
-    SELL <symbol> <size> <price> [<time_in_force>] [as <participant>]
+    BUY  <client_order_id> <symbol> <size> <price> [<time_in_force>]
+    SELL <client_order_id> <symbol> <size> <price> [<time_in_force>]
     v}
-
-    Examples:
-    {v
-    BUY AAPL 100 150.25
-    SELL TSLA 50 200.00 IOC
-    BUY AAPL 100 150.00 DAY as Alice
-    v}
-
-    Time-in-force defaults to DAY if omitted. Participant defaults to
-    "anonymous" if omitted. *)
+    Time-in-force defaults to DAY if omitted. Commands carry no participant:
+    identity comes from the login handshake, and the server stamps it onto
+    each submission. *)
 
 open! Core
 open Jsip_types

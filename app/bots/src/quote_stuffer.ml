@@ -51,7 +51,6 @@ let submit_one (config : Config.t) ctx ~symbol ~side ~price =
   config.next_client_order_id <- config.next_client_order_id + 1;
   let request : Order.Request.t =
     { symbol
-    ; participant = Bot_runtime.Context.participant ctx
     ; side
     ; price
     ; size = config.order_size

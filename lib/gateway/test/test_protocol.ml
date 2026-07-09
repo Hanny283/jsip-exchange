@@ -13,9 +13,9 @@ let%expect_test "format_event: all event types" =
   let events =
     [ Exchange_event.Order_accept
         { order_id = Order_id.of_string "1"
+        ; participant = Participant.of_string "Alice"
         ; request =
             { symbol = Symbol.of_string "AAPL"
-            ; participant = Participant.of_string "Alice"
             ; side = Buy
             ; price = Price.of_int_cents 15000
             ; size = Size.of_int 100
@@ -45,9 +45,9 @@ let%expect_test "format_event: all event types" =
         ; client_order_id = Client_order_id.of_string "3"
         }
     ; Order_reject
-        { request =
+        { participant = Participant.of_string "Alice"
+        ; request =
             { symbol = Symbol.of_string "GOOG"
-            ; participant = Participant.of_string "Alice"
             ; side = Sell
             ; price = Price.of_int_cents 28000
             ; size = Size.of_int 10
@@ -100,20 +100,22 @@ let%expect_test "round-trip: parse a command, submit, format result" =
   let t = Harness.create () in
   (* Place a resting sell *)
   Harness.submit_
+    ~participant:Harness.bob
     t
-    (Harness.sell ~price_cents:15000 ~participant:Harness.bob ());
+    (Harness.sell ~price_cents:15000 ());
   (* Parse a buy command from text and submit it *)
   let request =
-    match
-      Exchange_command.parse
-        ~default_participant:Harness.alice
-        "BUY 1 AAPL 100 150.00"
-    with
+    match Exchange_command.parse "BUY 1 AAPL 100 150.00" with
     | Ok (Exchange_command.Submit request) -> request
     | Ok _ -> failwith "expected a Submit command"
     | Error err -> Error.raise err
   in
-  let events = Matching_engine.submit (Harness.engine t) request in
+  let events =
+    Matching_engine.submit
+      (Harness.engine t)
+      request
+      ~participant:Harness.alice
+  in
   print_endline (Protocol.format_events events);
   [%expect
     {|

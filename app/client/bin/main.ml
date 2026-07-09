@@ -51,9 +51,7 @@ market-data feed.|}];
       if String.is_empty line
       then loop ()
       else (
-        let parsed =
-          Exchange_command.parse ~default_participant:participant line
-        in
+        let parsed = Exchange_command.parse line in
         match parsed with
         | Error msg ->
           let string_error = Error.to_string_hum msg in
@@ -115,32 +113,6 @@ Continue entering commands as normal.|}];
   in
   loop ()
 ;;
-
-(** if String.is_prefix line ~prefix:"BOOK" then ( match String.chop_prefix
-    line ~prefix:"BOOK " with | None -> print_endline "ERROR: expected BOOK
-    <symbol>"; loop () | Some rest -> let symbol = Symbol.of_string
-    (String.uppercase (String.strip rest)) in let%bind result =
-    Rpc.Rpc.dispatch_exn Rpc_protocol.book_query_rpc conn symbol in (match
-    result with | None -> print_endline
-    [%string "No book available for %{symbol#Symbol}"] | Some result ->
-    print_endline (Book.to_string result)); loop ()) else if String.is_prefix
-    line ~prefix:"SUBSCRIBE" then ( match String.chop_prefix line
-    ~prefix:"SUBSCRIBE " with | None -> print_endline "ERROR: expected
-    SUBSCRIBE <symbol>"; loop () | Some rest -> let symbol = Symbol.of_string
-    (String.uppercase (String.strip rest)) in let%bind result =
-    Rpc.Pipe_rpc.dispatch Rpc_protocol.market_data_rpc conn [ symbol ] in
-    (match result with | Error err | Ok (Error err) -> print_endline
-    [%string "ERROR subscribing: %{Error.to_string_hum err}"]; loop () | Ok
-    (Ok (reader, _id)) -> print_endline
-    [%string {| Subscribed to %{symbol#Symbol} market data. Updates will appear below. Continue entering commands as normal.|}];
-    (* Read market data in the background; the command loop continues running
-    concurrently. *) don't_wait_for (Pipe.iter_without_pushback reader
-    ~f:(fun event -> print_endline
-    [%string "[MD] %{Protocol.format_event event}"])); loop ())) else ( match
-    Protocol.parse_command_with_default_participant line ~default:participant
-    with | Error msg -> print_endline [%string "ERROR: %{msg}"]; loop () | Ok
-    request -> let%bind.Deferred.Or_error () = Rpc.Rpc.dispatch_exn
-    Rpc_protocol.submit_order_rpc conn request in loop ()) in loop () ;; *)
 
 let () =
   Command.async_or_error

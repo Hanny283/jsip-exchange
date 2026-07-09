@@ -11,6 +11,10 @@
 type t =
   | Order_accept of
       { order_id : Order_id.t
+      ; participant : Participant.t
+      (** The authenticated submitter. [request] does not name its owner
+          (identity comes from the login session, not the wire), so events
+          carry it explicitly — session routing keys on this field. *)
       ; request : Order.Request.t
       }
   | Fill of Fill.t
@@ -24,7 +28,8 @@ type t =
       ; client_order_id : Client_order_id.t
       }
   | Order_reject of
-      { request : Order.Request.t
+      { participant : Participant.t
+      ; request : Order.Request.t
       ; reason : string
       }
   | Best_bid_offer_update of

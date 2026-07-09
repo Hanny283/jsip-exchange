@@ -176,7 +176,6 @@ let seed_book
               Bot_runtime.Context.submit
                 context
                 ({ symbol
-                 ; participant = Context.participant context
                  ; side = Buy
                  ; price =
                      Price.of_int_cents (skewed_fair_value_cents - offset)
@@ -189,7 +188,6 @@ let seed_book
               Bot_runtime.Context.submit
                 context
                 ({ symbol
-                 ; participant = Context.participant context
                  ; side = Sell
                  ; price =
                      Price.of_int_cents (skewed_fair_value_cents + offset)
@@ -352,7 +350,7 @@ let on_event config context event =
       update_books side fill.symbol (Size.to_int fill.size);
       let%bind () = cancel_all_orders fill.symbol in
       seed_book config context [ fill.symbol ]
-    | Order_reject { request; reason = _ } ->
+    | Order_reject { participant = _; request; reason = _ } ->
       (* A rejected order never rests, so drop it from the book we
          optimistically added it to at submit time. *)
       let { asks; bids; inventory = _; fair_value_cents = _; bbo = _ } =

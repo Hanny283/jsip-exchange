@@ -104,8 +104,8 @@ let assoc_tests ~name ~create ~set ~get ~key_of_index =
   in
   (* [present_key n] indexes a key that was inserted; [absent_key] maps to an
      index never inserted, so its key is well-formed but missing. Keys are
-     built outside the timed thunk so we measure the store's compare/hash on a
-     [get], not the cost of constructing a (possibly fat) key. *)
+     built outside the timed thunk so we measure the store's compare/hash on
+     a [get], not the cost of constructing a (possibly fat) key. *)
   List.concat_map sizes ~f:(fun n ->
     let prebuilt = build n in
     let hit_key = key_of_index (present_key n) in
@@ -114,8 +114,9 @@ let assoc_tests ~name ~create ~set ~get ~key_of_index =
         ignore (build n : _))
     ; Bench.Test.create ~name:(sprintf "%s get_hit (n=%d)" name n) (fun () ->
         ignore (get prebuilt hit_key : int option))
-    ; Bench.Test.create ~name:(sprintf "%s get_miss (n=%d)" name n) (fun () ->
-        ignore (get prebuilt miss_key : int option))
+    ; Bench.Test.create
+        ~name:(sprintf "%s get_miss (n=%d)" name n)
+        (fun () -> ignore (get prebuilt miss_key : int option))
     ])
 ;;
 
@@ -166,9 +167,9 @@ let bench_associative =
 let bench_allocation =
   (* The input list is built once, outside the thunks, so we time only the
      copy / search -- not the construction of [xs]. [First_match] uses a
-     match-everything predicate so [silly]'s filter allocates a full n-element
-     list while [non_silly]'s [find] stops at the head; the gap is the whole
-     point of the mWd/Run column. *)
+     match-everything predicate so [silly]'s filter allocates a full
+     n-element list while [non_silly]'s [find] stops at the head; the gap is
+     the whole point of the mWd/Run column. *)
   let match_all _ = true in
   List.concat_map sizes ~f:(fun n ->
     let xs = List.init n ~f:Fn.id in
@@ -181,7 +182,8 @@ let bench_allocation =
     ; Bench.Test.create
         ~name:(sprintf "First_match silly (n=%d)" n)
         (fun () ->
-           ignore (Allocations.First_match.silly xs ~f:match_all : int option))
+           ignore
+             (Allocations.First_match.silly xs ~f:match_all : int option))
     ; Bench.Test.create
         ~name:(sprintf "First_match non_silly (n=%d)" n)
         (fun () ->
