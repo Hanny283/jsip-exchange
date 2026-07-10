@@ -2,7 +2,13 @@ open! Core
 open Jsip_types
 
 type t =
-  { books : Order_book.t Symbol.Table.t
+  { symbol_ids : int Symbol.Table.t
+      (* Interning: the i-th symbol passed to [create] gets id [i], and
+         [books.(i)] is its order book. The symbol set is fixed at create
+         time, so ids are dense, stable, and the array never resizes. A
+         lookup is one string hash plus an O(1) array index instead of a walk
+         that grows with the number of symbols. *)
+  ; books : Order_book.t array
   ; order_id_gen : Order_id.Generator.t
   ; mutable next_fill_id : int
   ; client_orders : Order.t Client_order_id.Table.t Participant.Table.t
@@ -10,18 +16,23 @@ type t =
 [@@deriving sexp_of]
 
 let create symbols =
-  let books =
-    List.map symbols ~f:(fun sym -> sym, Order_book.create sym)
-    |> Symbol.Table.of_alist_exn
-  in
-  { books
+  let symbol_ids = Symbol.Table.create () in
+  List.iteri symbols ~f:(fun id symbol ->
+    Hashtbl.add_exn symbol_ids ~key:symbol ~data:id);
+  let books = Array.of_list_map symbols ~f:Order_book.create in
+  { symbol_ids
+  ; books
   ; order_id_gen = Order_id.Generator.create ()
   ; next_fill_id = 1
   ; client_orders = Participant.Table.create ()
   }
 ;;
 
-let book t symbol = Hashtbl.find t.books symbol
+let find_book t symbol =
+  Hashtbl.find t.symbol_ids symbol |> Option.map ~f:(fun id -> t.books.(id))
+;;
+
+let book t symbol = find_book t symbol
 
 (** Run the matching loop: repeatedly find a compatible resting order and
     fill against it. Returns the list of Fill and Trade_report events
@@ -87,7 +98,7 @@ let submit t (request : Order.Request.t) ~participant =
         { participant; request; reason = "non-positive price" }
     ]
   else (
-    match Hashtbl.find t.books request.symbol with
+    match find_book t request.symbol with
     | None ->
       [ Exchange_event.Order_reject
           { participant; request; reason = "unknown symbol" }
@@ -172,7 +183,7 @@ let cancel t ~participant ~client_order_id =
     ]
   | Some order ->
     let symbol = Order.symbol order in
-    (match Hashtbl.find t.books symbol with
+    (match find_book t symbol with
      | None ->
        [ Exchange_event.Cancel_reject
            { participant; client_order_id; reason = "order not found" }
