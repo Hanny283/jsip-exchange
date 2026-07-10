@@ -252,7 +252,9 @@ let%expect_test "e2e: audit log subscriber sees full unfiltered stream \
 let%expect_test "dispatcher: closing a subscriber's reader removes the \
                  writer"
   =
-  let dispatcher = Dispatcher.create () in
+  let dispatcher =
+    Dispatcher.create ~registry:(Participant_id.Registry.create ())
+  in
   print_s
     [%message
       "initial"

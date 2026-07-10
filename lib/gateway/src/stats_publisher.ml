@@ -6,6 +6,10 @@ open Jsip_order_book
 type t =
   { collector : Stats_collector.t
   ; dispatcher : Dispatcher.t
+  ; registry : Participant_id.Registry.t
+      (* The collector's flushed rows are keyed by [Participant_id.t]; the
+         snapshot is a wire type and speaks names, so this edge resolves ids
+         back through the registry. *)
   ; engine : Matching_engine.t
   ; symbols : Symbol.t list
   ; request_queue_length : unit -> int
@@ -25,6 +29,7 @@ type t =
 let create
   ~collector
   ~dispatcher
+  ~registry
   ~engine
   ~symbols
   ~request_queue_length
@@ -32,6 +37,7 @@ let create
   =
   { collector
   ; dispatcher
+  ; registry
   ; engine
   ; (* Sorted once here so the per-tick book scan emits [books] rows already
        in the order the snapshot type promises. *)
@@ -168,9 +174,15 @@ let participant_stats
 (* Join the interval's per-participant command counts with the point-in-time
    resting-order counts from the book scan: union of keys, with zeros for
    whichever side is missing. [Map.to_alist] keeps the rows sorted by
-   participant. *)
-let participant_rows ~per_participant ~resting_counts =
-  let submitted = Participant.Map.of_alist_exn per_participant in
+   participant. The flushed counts arrive keyed by id and are resolved to
+   names here — this is the edge where the snapshot (a wire type) is built,
+   so it is where ids stop. *)
+let participant_rows t ~per_participant ~resting_counts =
+  let submitted =
+    Participant.Map.of_alist_exn
+      (List.map per_participant ~f:(fun (id, counts) ->
+         Participant_id.Registry.name t.registry id, counts))
+  in
   let resting =
     Participant.Map.of_alist_exn (Hashtbl.to_alist resting_counts)
   in
@@ -205,7 +217,7 @@ let tick t =
   t.peak_pipes <- None;
   let resting_counts = Participant.Table.create () in
   let books = book_depths t ~resting_counts in
-  let participants = participant_rows ~per_participant ~resting_counts in
+  let participants = participant_rows t ~per_participant ~resting_counts in
   let snapshot : Exchange_stats.t =
     { seq = t.seq
     ; sampled_at

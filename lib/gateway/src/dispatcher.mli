@@ -24,8 +24,15 @@ type t
     Events whose audience is a single participant (order-lifecycle responses
     and [Fill] events) are written to that participant's [Session] outbound
     pipe, which the client drains via [session_feed_rpc]. Register and
-    unregister sessions with [set_up_session] / [clean_up_session]. *)
-val create : unit -> t
+    unregister sessions with [set_up_session] / [clean_up_session].
+
+    [registry] is the server-global name<->id map shared with the stats
+    pipeline. Internally the session table is keyed by {!Participant_id.t};
+    [set_up_session] interns the name (so login is where a name becomes an
+    id), and routing resolves each event's participant name back through
+    [registry]. The dispatcher's own API still speaks names — the id never
+    leaves the server. *)
+val create : registry:Participant_id.Registry.t -> t
 
 (** The session currently registered for [participant], if any. Used by the
     login handler to detect a name that's already in use and to recover the

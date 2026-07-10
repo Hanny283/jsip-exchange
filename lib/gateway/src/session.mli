@@ -15,10 +15,18 @@ open Jsip_types
 
 type t
 
-val create : Participant.t -> t
+(** [participant_id] is the interned id the registry minted for [participant]
+    at login. The session carries both so hot paths that already hold a
+    session (submit/cancel handlers, dispatch) never touch the registry: the
+    name for anything that speaks names (engine commands, events), the id for
+    anything keyed by id (the session table, per-participant counters). *)
+val create : Participant.t -> participant_id:Participant_id.t -> t
 
 (** The participant this session belongs to. *)
 val participant : t -> Participant.t
+
+(** The interned id for {!participant} — see {!create}. *)
+val participant_id : t -> Participant_id.t
 
 (** Hand the reader to the client (via [session_feed_rpc]). Returns the same
     reader every time it's called — there is only one outbound stream per

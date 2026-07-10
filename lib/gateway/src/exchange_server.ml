@@ -35,8 +35,6 @@ type t =
 
 module Connection_state = struct
   type t = { mutable session : Session.t option }
-
-  let participant t = Option.map t.session ~f:Session.participant
 end
 
 (* Bound how many client commands can sit in the queue waiting for the
@@ -126,7 +124,12 @@ let start
   ()
   =
   let engine = Matching_engine.create symbols in
-  let dispatcher = Dispatcher.create () in
+  (* One registry shared by everything that touches participant ids: the
+     dispatcher (interns at login, routes by id) and the stats publisher
+     (resolves flushed rows back to names). A fill names two participants, so
+     an id has to mean the same thing to every component. *)
+  let registry = Participant_id.Registry.create () in
+  let dispatcher = Dispatcher.create ~registry in
   let request_reader, request_writer = Pipe.create () in
   Pipe.set_size_budget request_writer request_queue_size_budget;
   let collector = Stats_collector.create () in
@@ -134,6 +137,7 @@ let start
     Stats_publisher.create
       ~collector
       ~dispatcher
+      ~registry
       ~engine
       ~symbols
       ~request_queue_length:(fun () -> Pipe.length request_writer)
@@ -155,7 +159,12 @@ let start
                     request carries no participant at all, so a client can't
                     submit on behalf of someone else. *)
                  let participant = Session.participant session in
-                 Stats_collector.incr_orders_submitted collector participant;
+                 (* Stats key by the interned id; the engine command keeps
+                    the name (the engine is out of the id's scope). Both come
+                    straight off the session — no registry lookup. *)
+                 Stats_collector.incr_orders_submitted
+                   collector
+                   (Session.participant_id session);
                  enqueue
                    ~request_writer
                    { command = Submit { participant; request }; received_at })
@@ -218,11 +227,14 @@ let start
             Rpc_protocol.cancel_order_rpc
             (fun (state : Connection_state.t) client_order_id ->
                let received_at = Time_ns.now () in
-               match Connection_state.participant state with
+               match state.session with
                | None ->
                  Deferred.return (Or_error.error_string "not logged in")
-               | Some participant ->
-                 Stats_collector.incr_cancels_submitted collector participant;
+               | Some session ->
+                 let participant = Session.participant session in
+                 Stats_collector.incr_cancels_submitted
+                   collector
+                   (Session.participant_id session);
                  enqueue
                    ~request_writer
                    { command = Cancel { participant; client_order_id }

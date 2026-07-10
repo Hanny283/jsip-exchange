@@ -46,13 +46,16 @@ val record_cancel_latency : t -> Time_ns.Span.t -> unit
     to the interval in which it ends. *)
 val record_loop_iteration : t -> now:Time_ns.t -> unit
 
-(** [incr_orders_submitted t participant] counts one order submission
-    accepted by the RPC layer and enqueued for [participant] during the
-    interval — including submissions the engine later rejects. *)
-val incr_orders_submitted : t -> Participant.t -> unit
+(** [incr_orders_submitted t id] counts one order submission accepted by the
+    RPC layer and enqueued for the participant interned as [id] during the
+    interval — including submissions the engine later rejects. Keyed by
+    {!Participant_id.t} because the RPC handlers already hold the session
+    (and so the id) — the collector is internal plumbing, not an edge; the
+    publisher resolves ids back to names when building the wire snapshot. *)
+val incr_orders_submitted : t -> Participant_id.t -> unit
 
 (** As {!incr_orders_submitted}, for cancel requests. *)
-val incr_cancels_submitted : t -> Participant.t -> unit
+val incr_cancels_submitted : t -> Participant_id.t -> unit
 
 (** Everything one {!flush} hands back: the interval's accumulated metrics,
     shaped for direct inclusion in an {!Jsip_types.Exchange_stats.t}. *)
@@ -72,9 +75,9 @@ module Flushed : sig
 
   type t =
     { latencies : Exchange_stats.Latencies.t
-    ; per_participant : (Participant.t * Counts.t) list
+    ; per_participant : (Participant_id.t * Counts.t) list
     (** One row per participant that submitted at least one command this
-        interval; sorted by participant. *)
+        interval; sorted by id (i.e. first-login order). *)
     ; loop : Exchange_stats.Loop_stats.t
     }
   [@@deriving sexp_of]

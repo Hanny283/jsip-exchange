@@ -27,6 +27,7 @@
         Stats_publisher.create
           ~collector
           ~dispatcher
+          ~registry
           ~engine
           ~symbols
           ~request_queue_length:(fun () -> Pipe.length request_writer)
@@ -45,14 +46,17 @@ open Jsip_order_book
 
 type t
 
-(** [create ~collector ~dispatcher ~engine ~symbols ~request_queue_length] is
-    a publisher with no subscribers that has produced no snapshots (the first
-    {!tick} emits [seq = 1]).
+(** [create ~collector ~dispatcher ~registry ~engine ~symbols ~request_queue_length]
+    is a publisher with no subscribers that has produced no snapshots (the
+    first {!tick} emits [seq = 1]).
 
     - [collector] is flushed on every tick; the publisher must be the only
       flusher, since flushing resets the interval metrics.
     - [dispatcher] supplies subscriber-pipe occupancies via its introspection
       accessors ({!Dispatcher.audit_pipe_lengths} etc.).
+    - [registry] resolves the collector's {!Participant_id.t}-keyed rows back
+      to names when the snapshot (a wire type, which speaks names) is built —
+      the stats pipeline's ids stop here.
     - [engine] and [symbols] drive the per-symbol book scan; symbols the
       engine does not trade are skipped.
     - [request_queue_length] reports the matching loop's inbound queue
@@ -66,6 +70,7 @@ type t
 val create
   :  collector:Stats_collector.t
   -> dispatcher:Dispatcher.t
+  -> registry:Participant_id.Registry.t
   -> engine:Matching_engine.t
   -> symbols:Symbol.t list
   -> request_queue_length:(unit -> int)

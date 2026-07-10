@@ -6,28 +6,40 @@ type t =
   { market_data_subscribers_by_symbol :
       Exchange_event.t Pipe.Writer.t Bag.t Symbol.Table.t
   ; audit_subscribers : Exchange_event.t Pipe.Writer.t Bag.t
-  ; sessions : Session.t Participant.Table.t
+  ; sessions : Session.t Participant_id.Table.t
+      (* Keyed by the interned id, not the name: session lookups on the
+         dispatch path hash an int instead of a string. Events carry names,
+         so routing resolves name -> id through [registry] first. *)
+  ; registry : Participant_id.Registry.t
   }
 
-let create () =
+let create ~registry =
   { market_data_subscribers_by_symbol = Symbol.Table.create ()
   ; audit_subscribers = Bag.create ()
-  ; sessions = Participant.Table.create ()
+  ; sessions = Participant_id.Table.create ()
+  ; registry
   }
 ;;
 
-let find_session (t : t) participant = Hashtbl.find t.sessions participant
+let find_session (t : t) participant =
+  (* A name the registry has never seen has never logged in, so it cannot
+     have a session — [None] without touching the session table. *)
+  match Participant_id.Registry.find t.registry participant with
+  | None -> None
+  | Some id -> Hashtbl.find t.sessions id
+;;
 
-(* Tear down a session: close its outbound pipe and drop it from the registry
-   so the participant's name is free to log in again. The [phys_equal] guard
-   means a stale connection's close hook can't evict a newer session that has
-   since taken the same name. *)
+(* Tear down a session: close its outbound pipe and drop it from the session
+   table so the participant's name is free to log in again. The [phys_equal]
+   guard means a stale connection's close hook can't evict a newer session
+   that has since taken the same name. The registry is deliberately NOT
+   touched: the participant keeps their id for the next login. *)
 let clean_up_session (t : t) (session : Session.t) : unit Deferred.t =
-  let participant = Session.participant session in
+  let id = Session.participant_id session in
   Session.close session;
-  (match Hashtbl.find t.sessions participant with
+  (match Hashtbl.find t.sessions id with
    | Some current when phys_equal current session ->
-     Hashtbl.remove t.sessions participant
+     Hashtbl.remove t.sessions id
    | _ -> ());
   Deferred.return ()
 ;;
@@ -36,13 +48,18 @@ let set_up_session (t : t) (participant : Participant.t) : unit Deferred.t =
   (* Callers (the login handler) only reach here once they've decided it's
      safe to (re)register — i.e. no live session already holds this name. A
      leftover closed session is cleaned up first so the [Hashtbl.set] below
-     installs a fresh one. *)
+     installs a fresh one. Interning here makes login the one place a name
+     becomes an id; re-login finds the same id again. *)
+  let id = Participant_id.Registry.intern t.registry participant in
   let%bind () =
-    match Hashtbl.find t.sessions participant with
+    match Hashtbl.find t.sessions id with
     | None -> Deferred.return ()
     | Some existing -> clean_up_session t existing
   in
-  Hashtbl.set t.sessions ~key:participant ~data:(Session.create participant);
+  Hashtbl.set
+    t.sessions
+    ~key:id
+    ~data:(Session.create participant ~participant_id:id);
   Deferred.return ()
 ;;
 
@@ -109,9 +126,15 @@ let push_audit t event =
 ;;
 
 let push_to_session t participant event =
-  match Hashtbl.find t.sessions participant with
+  (* Events name participants (the engine speaks names), so routing resolves
+     name -> id first. [find] returning [None] means the name never logged in
+     — the same drop as today's no-session case. *)
+  match Participant_id.Registry.find t.registry participant with
   | None -> ()
-  | Some session -> Session.push session event
+  | Some id ->
+    (match Hashtbl.find t.sessions id with
+     | None -> ()
+     | Some session -> Session.push session event)
 ;;
 
 let dispatch_event t (event : Exchange_event.t) =
@@ -171,9 +194,12 @@ let market_data_pipe_lengths t =
 ;;
 
 let session_pipe_lengths t =
+  (* The snapshot edge speaks names: resolve back from each session (which
+     carries its own name — no registry lookup needed) and keep the
+     name-sorted order callers relied on before the id re-key. *)
   Hashtbl.to_alist t.sessions
-  |> List.map ~f:(fun (participant, session) ->
-    participant, Pipe.length (Session.reader session))
+  |> List.map ~f:(fun ((_ : Participant_id.t), session) ->
+    Session.participant session, Pipe.length (Session.reader session))
   |> List.sort ~compare:(fun (p1, _) (p2, _) -> Participant.compare p1 p2)
 ;;
 

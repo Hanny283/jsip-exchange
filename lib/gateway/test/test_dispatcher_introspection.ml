@@ -26,7 +26,9 @@ let print_pipe_lengths dispatcher =
 ;;
 
 let%expect_test "pipe lengths reflect undrained dispatched events" =
-  let dispatcher = Dispatcher.create () in
+  let dispatcher =
+    Dispatcher.create ~registry:(Participant_id.Registry.create ())
+  in
   (* One audit subscriber; one market-data subscriber whose single pipe
      covers both AAPL and TSLA; one logged-in session for Alice. We hold the
      readers but never drain them, so every dispatched event stays buffered
@@ -61,7 +63,9 @@ let%expect_test "pipe lengths reflect undrained dispatched events" =
 ;;
 
 let%expect_test "a saturated firehose is bounded: excess events are dropped" =
-  let dispatcher = Dispatcher.create () in
+  let dispatcher =
+    Dispatcher.create ~registry:(Participant_id.Registry.create ())
+  in
   let (_ : Exchange_event.t Pipe.Reader.t) =
     Dispatcher.subscribe_audit dispatcher
   in
@@ -85,5 +89,34 @@ let%expect_test "a saturated firehose is bounded: excess events are dropped" =
   print_pipe_lengths dispatcher;
   [%expect
     {| ((audit (1024)) (market_data ((AAPL (1024)))) (sessions ())) |}];
+  return ()
+;;
+
+let%expect_test "a participant keeps its id across reconnects" =
+  (* The session table prunes on disconnect but the registry never does —
+     that lifetime split is the point of interning at login: the id is the
+     first server state to outlive a connection. *)
+  let registry = Participant_id.Registry.create () in
+  let dispatcher = Dispatcher.create ~registry in
+  let%bind () = Dispatcher.set_up_session dispatcher Harness.alice in
+  let first =
+    Option.value_exn (Dispatcher.find_session dispatcher Harness.alice)
+  in
+  let%bind () = Dispatcher.clean_up_session dispatcher first in
+  let logged_in =
+    Option.is_some (Dispatcher.find_session dispatcher Harness.alice)
+  in
+  print_s [%message "after disconnect" (logged_in : bool)];
+  [%expect {| ("after disconnect" (logged_in false)) |}];
+  let%bind () = Dispatcher.set_up_session dispatcher Harness.alice in
+  let second =
+    Option.value_exn (Dispatcher.find_session dispatcher Harness.alice)
+  in
+  print_s
+    [%message
+      "ids across reconnect"
+        ~first:(Session.participant_id first : Participant_id.t)
+        ~second:(Session.participant_id second : Participant_id.t)];
+  [%expect {| ("ids across reconnect" (first 0) (second 0)) |}];
   return ()
 ;;
