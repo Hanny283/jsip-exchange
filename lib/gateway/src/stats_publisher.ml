@@ -11,9 +11,13 @@ type t =
          snapshot is a wire type and speaks names, so this edge resolves ids
          back through the registry. *)
   ; engine : Matching_engine.t
-  ; symbols : Symbol.t list
+  ; symbols : (Symbol.t * Symbol_id.t) list
+      (* TEMPORARY BRIDGE (deleted when Exchange_stats converts to ids): the
+         engine now speaks ids but the stats snapshot still speaks names, so
+         each traded symbol is paired positionally with its id — query the
+         engine by the id, publish the name. *)
   ; request_queue_length : unit -> int
-  ; fundamental : Symbol.t -> Price.t option
+  ; fundamental : Symbol_id.t -> Price.t option
       (* The scenario oracle's fair price for a symbol, or [None] when there
          is no oracle (standalone server) or the symbol is unknown to it. A
          closure because the oracle lives in [jsip_scenario_runner], which
@@ -39,9 +43,13 @@ let create
   ; dispatcher
   ; registry
   ; engine
-  ; (* Sorted once here so the per-tick book scan emits [books] rows already
-       in the order the snapshot type promises. *)
-    symbols = List.sort symbols ~compare:Symbol.compare
+  ; (* Ids are positional in the ORIGINAL list order (matching the engine's
+       assignment), so pair before sorting; then sort by name so the per-tick
+       book scan emits [books] rows already in the order the snapshot type
+       promises. *)
+    symbols =
+      List.mapi symbols ~f:(fun id symbol -> symbol, Symbol_id.of_int id)
+      |> List.sort ~compare:(fun (s1, _) (s2, _) -> Symbol.compare s1 s2)
   ; request_queue_length
   ; fundamental
   ; subscribers = Bag.create ()
@@ -61,11 +69,24 @@ let subscribe t =
   reader
 ;;
 
+(* TEMPORARY BRIDGE (deleted when Exchange_stats converts to ids): the
+   dispatcher reports market-data occupancy by id; the snapshot still speaks
+   names, sorted by name. *)
+let market_data_rows t =
+  Dispatcher.market_data_pipe_lengths t.dispatcher
+  |> List.map ~f:(fun (id, lengths) ->
+    let name, (_ : Symbol_id.t) =
+      List.find_exn t.symbols ~f:(fun ((_ : Symbol.t), id') ->
+        Symbol_id.equal id id')
+    in
+    name, lengths)
+  |> List.sort ~compare:(fun (s1, _) (s2, _) -> Symbol.compare s1 s2)
+;;
+
 let pipe_occupancy t : Exchange_stats.Pipe_occupancy.t =
   { request_queue = t.request_queue_length ()
   ; audit_subscribers = Dispatcher.audit_pipe_lengths t.dispatcher
-  ; market_data_subscribers =
-      Dispatcher.market_data_pipe_lengths t.dispatcher
+  ; market_data_subscribers = market_data_rows t
   ; sessions = Dispatcher.session_pipe_lengths t.dispatcher
   ; stats_subscribers = Bag.to_list t.subscribers |> List.map ~f:Pipe.length
   }
@@ -137,8 +158,8 @@ let side_depth book side ~resting_counts : Exchange_stats.Side_depth.t =
 ;;
 
 let book_depths t ~resting_counts =
-  List.filter_map t.symbols ~f:(fun symbol ->
-    match Matching_engine.book t.engine symbol with
+  List.filter_map t.symbols ~f:(fun (symbol, id) ->
+    match Matching_engine.book t.engine id with
     | None -> None
     | Some book ->
       let depth : Exchange_stats.Book_depth.t =
@@ -154,8 +175,8 @@ let book_depths t ~resting_counts =
    same sorted-by-symbol order as [books]. Symbols with no oracle price (all
    of them on a standalone server) are dropped, so the list is empty there. *)
 let fundamentals t =
-  List.filter_map t.symbols ~f:(fun symbol ->
-    Option.map (t.fundamental symbol) ~f:(fun price -> symbol, price))
+  List.filter_map t.symbols ~f:(fun (symbol, id) ->
+    Option.map (t.fundamental id) ~f:(fun price -> symbol, price))
 ;;
 
 let no_commands_submitted : Stats_collector.Flushed.Counts.t =

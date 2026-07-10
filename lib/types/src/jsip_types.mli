@@ -19,5 +19,6 @@ module Side = Side
 module Size = Size
 module Span_histogram = Span_histogram
 module Symbol = Symbol
+module Symbol_id = Symbol_id
 module Time_in_force = Time_in_force
 module Client_order_id = Client_order_id

@@ -5,9 +5,12 @@ open Jsip_gateway
 
 (* --- Constants --- *)
 
-let aapl = Symbol.of_string "AAPL"
-let tsla = Symbol.of_string "TSLA"
-let goog = Symbol.of_string "GOOG"
+(* The standard test symbol set is positional: AAPL is id 0, TSLA id 1, GOOG
+   id 2, and [create]'s default engine trades exactly those three ids. Every
+   fixture in the suite maps through this one place. *)
+let aapl = Symbol_id.of_int 0
+let tsla = Symbol_id.of_int 1
+let goog = Symbol_id.of_int 2
 let alice = Participant.of_string "Alice"
 let bob = Participant.of_string "Bob"
 let charlie = Participant.of_string "Charlie"
@@ -17,8 +20,8 @@ let market_maker = Participant.of_string "MarketMaker"
 
 type t = { engine : Matching_engine.t }
 
-let create ?(symbols = [ aapl; tsla; goog ]) () =
-  { engine = Matching_engine.create symbols }
+let create ?(num_symbols = 3) () =
+  { engine = Matching_engine.create ~num_symbols }
 ;;
 
 let engine t = t.engine
@@ -157,14 +160,14 @@ let submit_quiet_ ?participant t request =
 
 let print_book t symbol =
   match Matching_engine.book t.engine symbol with
-  | None -> print_endline [%string "unknown symbol %{symbol#Symbol}"]
+  | None -> print_endline [%string "unknown symbol %{symbol#Symbol_id}"]
   | Some book -> Order_book.snapshot book |> Book.to_string |> print_endline
 ;;
 
 let print_bbo t symbol =
   match Matching_engine.book t.engine symbol with
-  | None -> print_endline [%string "BBO %{symbol#Symbol}: unknown symbol"]
+  | None -> print_endline [%string "BBO %{symbol#Symbol_id}: unknown symbol"]
   | Some book ->
     let bbo = Order_book.best_bid_offer book |> Bbo.to_string in
-    print_endline [%string "BBO %{symbol#Symbol}: %{bbo}"]
+    print_endline [%string "BBO %{symbol#Symbol_id}: %{bbo}"]
 ;;

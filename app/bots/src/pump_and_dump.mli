@@ -52,7 +52,7 @@ module Config : sig
       seeded to a fresh run ([Awaiting_anchor], flat book). See the field
       comments in [pump_and_dump.ml] for what each knob controls. *)
   val create
-    :  target_symbol:Symbol.t
+    :  target_symbol:Symbol_id.t
     -> pump_target_pct:Percent.t
     -> clip_size:int
     -> max_inventory:int

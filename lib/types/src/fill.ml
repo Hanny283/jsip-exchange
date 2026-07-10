@@ -2,7 +2,7 @@ open! Core
 
 type t =
   { fill_id : int
-  ; symbol : Symbol.t
+  ; symbol : Symbol_id.t
   ; price : Price.t
   ; size : Size.t
   ; aggressor_order_id : Order_id.t
@@ -34,7 +34,7 @@ let to_string
     "fill_id=%d %s %s x%d aggressor=%s(%s) client_id=%s %s resting=%s(%s) \
      client_id=%s"
     fill_id
-    (Symbol.to_string symbol)
+    (Symbol_id.to_string symbol)
     (Price.to_string_dollar price)
     (Size.to_int size)
     (Order_id.to_string aggressor_order_id)

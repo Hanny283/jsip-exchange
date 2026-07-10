@@ -20,7 +20,7 @@ module Context = Jsip_bot_runtime.Bot_runtime.Context
 
 module Config = struct
   type t =
-    { symbols : Symbol.t list
+    { symbols : Symbol_id.t list
     ; orders_per_burst : int
         (* Orders fired in a single tight burst per tick -- the core stress
            lever. Combined with a small tick interval this pins the request
@@ -43,7 +43,7 @@ module Config = struct
         (* Half-width of the uniform price band around the reference price,
            so the burst spreads across many price levels. *)
     ; generator : Client_order_id.Generator.t
-    ; bbo_cache : Bbo.t Symbol.Table.t
+    ; bbo_cache : Bbo.t Symbol_id.Table.t
     }
 
   let create
@@ -63,7 +63,7 @@ module Config = struct
     ; mean_size
     ; price_jitter_cents
     ; generator = Client_order_id.Generator.create ()
-    ; bbo_cache = Symbol.Table.create ()
+    ; bbo_cache = Symbol_id.Table.create ()
     }
   ;;
 end

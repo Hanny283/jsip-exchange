@@ -12,6 +12,11 @@ let description =
 ;;
 
 let symbol = Symbol.of_string "AAPL"
+
+(* The exchange assigns ids positionally; a single-symbol scenario's only
+   symbol is id 0. Bots, the oracle, and market-data subscriptions speak the
+   id; [Scenario_config.symbols] keeps the name (the server's list). *)
+let symbol_id = Symbol_id.of_int 0
 let initial_price_cents = 15000
 
 (* Modest volatility and gentle mean reversion: the fundamental drifts
@@ -19,8 +24,8 @@ let initial_price_cents = 15000
    news shocks in this scenario, so this OU noise is the *only* thing moving
    fair value -- keeping it small is what makes the day "calm". *)
 let oracle_config : Fundamental_oracle.Config.t =
-  Symbol.Map.of_alist_exn
-    [ ( symbol
+  Symbol_id.Map.of_alist_exn
+    [ ( symbol_id
       , { Fundamental_oracle.Config.initial_price_cents
         ; volatility_cents_per_sec = 3.0
         ; mean_reversion_strength = 0.05
@@ -46,7 +51,7 @@ let market_maker_spec =
     { bot = (module Market_maker_bot)
     ; config =
         Market_maker_bot.Config.create
-          ~symbols:[ symbol ]
+          ~symbols:[ symbol_id ]
           ~size_per_level:10
           ~num_levels:5
           ~inventory_skew_cents_per_share:1
@@ -54,7 +59,7 @@ let market_maker_spec =
           ~min_half_spread_cents:2
           ~max_spread_cents:500
     ; participant = Participant.of_string "market-maker"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 2001
     ; tick_interval = Time_ns.Span.of_sec 1.0
     ; is_marketdata_consumer = true
@@ -71,13 +76,13 @@ let noise_trader_spec =
     { bot = (module Noise_trader)
     ; config =
         Noise_trader.Config.create
-          ~symbols:[ symbol ]
+          ~symbols:[ symbol_id ]
           ~mean_size:6
           ~tick_chance:(Percent.of_percentage 50.)
           ~aggressiveness:(Percent.of_percentage 45.)
           ~time_in_force_distribution:(day_ioc_mix ~day_pct:70.)
     ; participant = Participant.of_string "noise-trader"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 3001
     ; tick_interval = Time_ns.Span.of_ms 400.0
     ; is_marketdata_consumer = true

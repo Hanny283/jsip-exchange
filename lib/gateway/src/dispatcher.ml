@@ -4,7 +4,12 @@ open Jsip_types
 
 type t =
   { market_data_subscribers_by_symbol :
-      Exchange_event.t Pipe.Writer.t Bag.t Symbol.Table.t
+      Exchange_event.t Pipe.Writer.t Bag.t array
+      (* One bag per symbol id, [0 .. num_symbols - 1]. Symbol ids are dense,
+         so per-event routing is an array index — no hashing. Callers (the
+         market-data RPC handler) validate ids against the trading set before
+         subscribing; events' ids come from the engine and are always in
+         range. *)
   ; audit_subscribers : Exchange_event.t Pipe.Writer.t Bag.t
   ; sessions : Session.t Participant_id.Table.t
       (* Keyed by the interned id, not the name: session lookups on the
@@ -13,8 +18,9 @@ type t =
   ; registry : Participant_id.Registry.t
   }
 
-let create ~registry =
-  { market_data_subscribers_by_symbol = Symbol.Table.create ()
+let create ~registry ~num_symbols =
+  { market_data_subscribers_by_symbol =
+      Array.init num_symbols ~f:(fun (_ : int) -> Bag.create ())
   ; audit_subscribers = Bag.create ()
   ; sessions = Participant_id.Table.create ()
   ; registry
@@ -72,19 +78,16 @@ let subscribe_market_data t symbols =
   let elts =
     List.map symbols ~f:(fun symbol ->
       let subscribers =
-        Hashtbl.find_or_add
-          t.market_data_subscribers_by_symbol
-          ~default:Bag.create
-          symbol
+        t.market_data_subscribers_by_symbol.(Symbol_id.to_int symbol)
       in
       symbol, Bag.add subscribers writer)
   in
   don't_wait_for
     (let%map () = Pipe.closed writer in
      List.iter elts ~f:(fun (symbol, elt) ->
-       match Hashtbl.find t.market_data_subscribers_by_symbol symbol with
-       | None -> ()
-       | Some subscribers -> Bag.remove subscribers elt));
+       Bag.remove
+         t.market_data_subscribers_by_symbol.(Symbol_id.to_int symbol)
+         elt));
   reader
 ;;
 
@@ -111,10 +114,11 @@ let subscribe_audit t =
 let max_feed_backlog = 1024
 
 let push_market_data t event symbol =
-  match Hashtbl.find t.market_data_subscribers_by_symbol symbol with
-  | None -> ()
-  | Some subscribers ->
-    Bag.iter subscribers ~f:(fun writer ->
+  (* Events' symbol ids come from the engine, so they are always in range;
+     the array access is one indexed load per market-data event. *)
+  Bag.iter
+    t.market_data_subscribers_by_symbol.(Symbol_id.to_int symbol)
+    ~f:(fun writer ->
       if Pipe.length writer < max_feed_backlog
       then Pipe.write_without_pushback_if_open writer event)
 ;;
@@ -187,10 +191,17 @@ let audit_pipe_lengths t =
 ;;
 
 let market_data_pipe_lengths t =
-  Hashtbl.to_alist t.market_data_subscribers_by_symbol
-  |> List.map ~f:(fun (symbol, subscribers) ->
-    symbol, Bag.to_list subscribers |> List.map ~f:Pipe.length)
-  |> List.sort ~compare:(fun (s1, _) (s2, _) -> Symbol.compare s1 s2)
+  (* The array holds a bag for every traded id; report only ids someone is
+     subscribed to, as the table-backed version did. Array order is id order,
+     so rows come out sorted without an explicit sort. *)
+  Array.to_list t.market_data_subscribers_by_symbol
+  |> List.filter_mapi ~f:(fun id subscribers ->
+    if Bag.is_empty subscribers
+    then None
+    else
+      Some
+        ( Symbol_id.of_int id
+        , Bag.to_list subscribers |> List.map ~f:Pipe.length ))
 ;;
 
 let session_pipe_lengths t =

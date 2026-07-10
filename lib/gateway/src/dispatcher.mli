@@ -2,9 +2,10 @@
 
     Owns subscription registries:
 
-    - **Market-data subscribers**, keyed by [Symbol.t]. Each subscriber gets
-      a pipe of [Best_bid_offer_update] and [Trade_report] events for the
-      symbol they asked about. This is the public market-data feed.
+    - **Market-data subscribers**, one bag per traded [Symbol_id.t] (a dense
+      array — per-event routing is an index). Each subscriber gets a pipe of
+      [Best_bid_offer_update] and [Trade_report] events for the symbol they
+      asked about. This is the public market-data feed.
 
     - **Audit subscribers**, an unfiltered firehose of every event the
       matching engine produces. Intended for the exchange operator's monitor;
@@ -31,8 +32,12 @@ type t
     [set_up_session] interns the name (so login is where a name becomes an
     id), and routing resolves each event's participant name back through
     [registry]. The dispatcher's own API still speaks names — the id never
-    leaves the server. *)
-val create : registry:Participant_id.Registry.t -> t
+    leaves the server.
+
+    [num_symbols] sizes the per-symbol market-data routing array: the
+    dispatcher serves symbol ids [0 .. num_symbols - 1], matching the
+    engine's trading set. *)
+val create : registry:Participant_id.Registry.t -> num_symbols:int -> t
 
 (** The session currently registered for [participant], if any. Used by the
     login handler to detect a name that's already in use and to recover the
@@ -43,10 +48,11 @@ val find_session : t -> Participant.t -> Session.t option
     receives events for every requested symbol; the dispatcher avoids
     duplicates so a subscriber listed against multiple symbols only sees each
     event once. The pipe is removed from the dispatcher when its reader is
-    closed. *)
+    closed. Every id must be in [0 .. num_symbols - 1] — the market-data RPC
+    handler validates before subscribing; an out-of-range id here raises. *)
 val subscribe_market_data
   :  t
-  -> Symbol.t list
+  -> Symbol_id.t list
   -> Exchange_event.t Pipe.Reader.t
 
 (** Subscribe to the full unfiltered event firehose. Intended for the monitor
@@ -84,11 +90,11 @@ val set_up_session : t -> Participant.t -> unit Deferred.t
 val audit_pipe_lengths : t -> int list
 
 (** [Pipe.length] of each market-data subscriber's pipe, grouped by symbol.
-    Symbols are sorted; within a symbol, entries are in bag order. A
-    subscriber registered for several symbols (via [subscribe_market_data])
-    shares one pipe across all of them, so it appears under each of its
-    symbols with the same (total) length. *)
-val market_data_pipe_lengths : t -> (Symbol.t * int list) list
+    Rows are in id order and only ids with a live subscriber appear; within a
+    symbol, entries are in bag order. A subscriber registered for several
+    symbols (via [subscribe_market_data]) shares one pipe across all of them,
+    so it appears under each of its symbols with the same (total) length. *)
+val market_data_pipe_lengths : t -> (Symbol_id.t * int list) list
 
 (** [Pipe.length] of each logged-in participant's session feed pipe, sorted
     by participant. *)

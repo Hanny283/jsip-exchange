@@ -5,7 +5,7 @@ open Jsip_bot_runtime
 open! Jsip_bots
 open Bot_harness
 
-let aapl = Symbol.of_string "AAPL"
+let aapl = Symbol_id.of_int 0
 
 (* A synthetic two-sided market for the bot to peg against. *)
 let bbo ~bid_cents ~ask_cents : Bbo.t =
@@ -41,10 +41,10 @@ let%expect_test "one flood pegs a burst one tick inside each side of the BBO"
   print_submitted submitted;
   [%expect
     {|
-    BUY AAPL 1@$150.99 DAY
-    BUY AAPL 1@$150.99 DAY
-    SELL AAPL 1@$149.01 DAY
-    SELL AAPL 1@$149.01 DAY
+    BUY 0 1@$150.99 DAY
+    BUY 0 1@$150.99 DAY
+    SELL 0 1@$149.01 DAY
+    SELL 0 1@$149.01 DAY
     |}];
   return ()
 ;;
@@ -117,12 +117,12 @@ let%expect_test "successive ticks re-peg to the latest BBO" =
   print_submitted submitted;
   [%expect
     {|
-    BUY AAPL 1@$150.99 DAY
-    SELL AAPL 1@$149.01 DAY
-    BUY AAPL 1@$151.49 DAY
-    SELL AAPL 1@$149.51 DAY
-    BUY AAPL 1@$149.99 DAY
-    SELL AAPL 1@$148.01 DAY
+    BUY 0 1@$150.99 DAY
+    SELL 0 1@$149.01 DAY
+    BUY 0 1@$151.49 DAY
+    SELL 0 1@$149.51 DAY
+    BUY 0 1@$149.99 DAY
+    SELL 0 1@$148.01 DAY
     |}];
   return ()
 ;;

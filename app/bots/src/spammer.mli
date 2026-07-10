@@ -27,7 +27,7 @@ module Config : sig
       loads; [mean_size] and [price_jitter_cents] shape the orders
       themselves. *)
   val create
-    :  symbols:Symbol.t list
+    :  symbols:Symbol_id.t list
     -> orders_per_burst:int
     -> buy_chance:Percent.t
     -> marketable_chance:Percent.t

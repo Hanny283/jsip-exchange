@@ -29,7 +29,7 @@ let%expect_test "submit-order RPC" =
        : Async_rpc_kernel.Rpc_shapes.t)];
   [%expect
     {|
-    (Rpc (query 27c1f5c64d9a8b3e8e36f9dc27b525c9)
+    (Rpc (query 796dc89d7ebc379ea260a4ddfc086557)
      (response 27f76252e5181aab209cd62aa6e42268))
     |}];
   return ()
@@ -42,8 +42,8 @@ let%expect_test "book-query RPC" =
        : Async_rpc_kernel.Rpc_shapes.t)];
   [%expect
     {|
-    (Rpc (query d9a8da25d5656b016fb4dbdc2e4197fb)
-     (response 9bf9d93dd466a19cac18ecff7cd287af))
+    (Rpc (query 698cfa4093fe5e51523842d37b92aeac)
+     (response 69122cea75d1c08088ac96792b33f39f))
     |}];
   return ()
 ;;
@@ -67,9 +67,9 @@ let%expect_test "market-data RPC" =
        : Async_rpc_kernel.Rpc_shapes.t)];
   [%expect
     {|
-    (Streaming_rpc (query 296be80010ace497614f92952e5510c4)
+    (Streaming_rpc (query 4cd553520709511864846bda25c448d0)
      (initial_response 86ba5df747eec837f0b391dd49f33f9e)
-     (update_response afe6fa6acdbbf7f1968471ea2482dbbb)
+     (update_response dbcdebbae95c13e908895a1d7544c7e9)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
   return ()
@@ -84,7 +84,7 @@ let%expect_test "audit-log RPC" =
     {|
     (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
      (initial_response 86ba5df747eec837f0b391dd49f33f9e)
-     (update_response afe6fa6acdbbf7f1968471ea2482dbbb)
+     (update_response dbcdebbae95c13e908895a1d7544c7e9)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
   return ()
@@ -99,7 +99,7 @@ let%expect_test "session-feed RPC" =
     {|
     (Streaming_rpc (query 86ba5df747eec837f0b391dd49f33f9e)
      (initial_response 86ba5df747eec837f0b391dd49f33f9e)
-     (update_response afe6fa6acdbbf7f1968471ea2482dbbb)
+     (update_response dbcdebbae95c13e908895a1d7544c7e9)
      (error 52966f4a49a77bfdff668e9cc61511b3))
     |}];
   return ()

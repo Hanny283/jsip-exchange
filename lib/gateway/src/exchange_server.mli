@@ -29,7 +29,7 @@ val start
   :  symbols:Symbol.t list
   -> port:int
   -> ?stats_interval:Time_ns.Span.t
-  -> ?fundamental:(Symbol.t -> Price.t option)
+  -> ?fundamental:(Symbol_id.t -> Price.t option)
   -> unit
   -> t Deferred.t
 

@@ -19,7 +19,7 @@ let print_pipe_lengths dispatcher =
         ~audit:(Dispatcher.audit_pipe_lengths dispatcher : int list)
         ~market_data:
           (Dispatcher.market_data_pipe_lengths dispatcher
-           : (Symbol.t * int list) list)
+           : (Symbol_id.t * int list) list)
         ~sessions:
           (Dispatcher.session_pipe_lengths dispatcher
            : (Participant.t * int) list)]
@@ -27,7 +27,9 @@ let print_pipe_lengths dispatcher =
 
 let%expect_test "pipe lengths reflect undrained dispatched events" =
   let dispatcher =
-    Dispatcher.create ~registry:(Participant_id.Registry.create ())
+    Dispatcher.create
+      ~registry:(Participant_id.Registry.create ())
+      ~num_symbols:3
   in
   (* One audit subscriber; one market-data subscriber whose single pipe
      covers both AAPL and TSLA; one logged-in session for Alice. We hold the
@@ -45,7 +47,7 @@ let%expect_test "pipe lengths reflect undrained dispatched events" =
   (* Before any dispatch, every pipe is registered but empty. *)
   print_pipe_lengths dispatcher;
   [%expect
-    {| ((audit (0)) (market_data ((AAPL (0)) (TSLA (0)))) (sessions ((Alice 0)))) |}];
+    {| ((audit (0)) (market_data ((0 (0)) (1 (0)))) (sessions ((Alice 0)))) |}];
   Dispatcher.dispatch dispatcher Harness.sample_events;
   (* [sample_events] is one event per constructor, all on AAPL:
      - audit receives all 6;
@@ -58,13 +60,15 @@ let%expect_test "pipe lengths reflect undrained dispatched events" =
        resting party is Bob, who has no session, so that copy is dropped. *)
   print_pipe_lengths dispatcher;
   [%expect
-    {| ((audit (6)) (market_data ((AAPL (2)) (TSLA (2)))) (sessions ((Alice 4)))) |}];
+    {| ((audit (6)) (market_data ((0 (2)) (1 (2)))) (sessions ((Alice 4)))) |}];
   return ()
 ;;
 
 let%expect_test "a saturated firehose is bounded: excess events are dropped" =
   let dispatcher =
-    Dispatcher.create ~registry:(Participant_id.Registry.create ())
+    Dispatcher.create
+      ~registry:(Participant_id.Registry.create ())
+      ~num_symbols:3
   in
   let (_ : Exchange_event.t Pipe.Reader.t) =
     Dispatcher.subscribe_audit dispatcher
@@ -87,8 +91,7 @@ let%expect_test "a saturated firehose is bounded: excess events are dropped" =
   in
   Dispatcher.dispatch dispatcher (List.init 3000 ~f:(fun _ -> trade));
   print_pipe_lengths dispatcher;
-  [%expect
-    {| ((audit (1024)) (market_data ((AAPL (1024)))) (sessions ())) |}];
+  [%expect {| ((audit (1024)) (market_data ((0 (1024)))) (sessions ())) |}];
   return ()
 ;;
 
@@ -97,7 +100,7 @@ let%expect_test "a participant keeps its id across reconnects" =
      that lifetime split is the point of interning at login: the id is the
      first server state to outlive a connection. *)
   let registry = Participant_id.Registry.create () in
-  let dispatcher = Dispatcher.create ~registry in
+  let dispatcher = Dispatcher.create ~registry ~num_symbols:3 in
   let%bind () = Dispatcher.set_up_session dispatcher Harness.alice in
   let first =
     Option.value_exn (Dispatcher.find_session dispatcher Harness.alice)

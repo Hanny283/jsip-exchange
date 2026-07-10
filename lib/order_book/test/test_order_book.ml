@@ -272,7 +272,7 @@ let%expect_test "snapshot lists levels in price-time priority order" =
      order: bids highest-price-first, asks lowest-price-first. *)
   [%expect
     {|
-    === AAPL ===
+    === 0 ===
       BIDS:
         $150.00 x100
         $149.95 x100
@@ -308,7 +308,7 @@ let%expect_test "snapshot aggregates same-price orders into one level" =
   (* One bid level at 400 (100+250+50), one ask level at 375 (300+75). *)
   [%expect
     {|
-    === AAPL ===
+    === 0 ===
       BIDS:
         $150.00 x400
       ASKS:
@@ -380,7 +380,7 @@ let%expect_test "snapshot aggregates across participants at one price" =
   [%expect
     {|
     ((bid_levels 1) (ask_levels 1))
-    === AAPL ===
+    === 0 ===
       BIDS:
         $150.00 x600
       ASKS:

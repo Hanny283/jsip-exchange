@@ -24,7 +24,7 @@ module Config : sig
       - [time_in_force_distribution]: distribution the time-in-force is drawn
         from (a weighted entry per {!Time_in_force.t}). *)
   val create
-    :  symbols:Symbol.t list
+    :  symbols:Symbol_id.t list
     -> mean_size:int
     -> tick_chance:Percent.t
     -> aggressiveness:Percent.t

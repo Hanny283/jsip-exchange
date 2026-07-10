@@ -16,14 +16,19 @@ let description =
 ;;
 
 let symbol = Symbol.of_string "AAPL"
+
+(* The exchange assigns ids positionally; a single-symbol scenario's only
+   symbol is id 0. Bots, the oracle, and market-data subscriptions speak the
+   id; [Scenario_config.symbols] keeps the name (the server's list). *)
+let symbol_id = Symbol_id.of_int 0
 let initial_price_cents = 15000
 
 (* Higher volatility and weak mean reversion: we want the market jumpy and,
    once the crash starts, we do *not* want the fundamental snapping back to
    its starting level -- the point is a sustained collapse, not a dip. *)
 let oracle_config : Fundamental_oracle.Config.t =
-  Symbol.Map.of_alist_exn
-    [ ( symbol
+  Symbol_id.Map.of_alist_exn
+    [ ( symbol_id
       , { Fundamental_oracle.Config.initial_price_cents
         ; volatility_cents_per_sec = 5.0
         ; mean_reversion_strength = 0.02
@@ -53,7 +58,7 @@ let crash_news : News_injector.Event.t list =
         Time_ns.Span.( + )
           first_at
           (Time_ns.Span.scale step_every (Float.of_int i))
-    ; symbol
+    ; symbol = symbol_id
     ; delta_cents = step_cents
     ; description = descriptions.(i % Array.length descriptions)
     })
@@ -81,7 +86,7 @@ let whale_spec =
     { bot = (module Spammer)
     ; config =
         Spammer.Config.create
-          ~symbols:[ symbol ]
+          ~symbols:[ symbol_id ]
           ~orders_per_burst:12
           ~buy_chance:(Percent.of_percentage 10.)
           ~marketable_chance:(Percent.of_percentage 100.)
@@ -89,7 +94,7 @@ let whale_spec =
           ~mean_size:40
           ~price_jitter_cents:30
     ; participant = Participant.of_string "whale"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 5001
     ; tick_interval = Time_ns.Span.of_ms 250.0
     ; is_marketdata_consumer = true
@@ -110,7 +115,7 @@ let market_maker_specs =
         { bot = (module Market_maker_bot)
         ; config =
             Market_maker_bot.Config.create
-              ~symbols:[ symbol ]
+              ~symbols:[ symbol_id ]
               ~size_per_level:10
               ~num_levels:5
               ~inventory_skew_cents_per_share:1
@@ -118,7 +123,7 @@ let market_maker_specs =
               ~min_half_spread_cents:2
               ~max_spread_cents:250
         ; participant = Participant.of_string participant
-        ; symbols = [ symbol ]
+        ; symbols = [ symbol_id ]
         ; rng_seed = seed
         ; tick_interval = Time_ns.Span.of_sec 1.0
         ; is_marketdata_consumer = true
@@ -132,13 +137,13 @@ let noise_trader_spec =
     { bot = (module Noise_trader)
     ; config =
         Noise_trader.Config.create
-          ~symbols:[ symbol ]
+          ~symbols:[ symbol_id ]
           ~mean_size:8
           ~tick_chance:(Percent.of_percentage 80.)
           ~aggressiveness:(Percent.of_percentage 50.)
           ~time_in_force_distribution:(day_ioc_mix ~day_pct:50.)
     ; participant = Participant.of_string "noise-trader"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 3001
     ; tick_interval = Time_ns.Span.of_ms 200.0
     ; is_marketdata_consumer = true
@@ -154,7 +159,7 @@ let momentum_trader_spec =
     { bot = (module Momentum_trader)
     ; config =
         Momentum_trader.Config.create_exn
-          ~symbol
+          ~symbol:symbol_id
           ~window_capacity:5
           ~threshold_cents:15
           ~max_order_size:25
@@ -162,7 +167,7 @@ let momentum_trader_spec =
           ~cooldown_ticks:1
           ()
     ; participant = Participant.of_string "momentum-trader"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 4001
     ; tick_interval = Time_ns.Span.of_ms 500.0
     ; is_marketdata_consumer = true

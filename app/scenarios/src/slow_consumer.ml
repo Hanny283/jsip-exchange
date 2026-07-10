@@ -17,12 +17,17 @@ let description =
 
 let aapl = Symbol.of_string "AAPL"
 
+(* The exchange assigns ids positionally; this scenario's only symbol is id
+   0. Bots, the oracle, and subscriptions speak the id;
+   [Scenario_config.symbols] keeps the name (the server's list). *)
+let aapl_id = Symbol_id.of_int 0
+
 (* A gently drifting fundamental so the market maker's quotes keep moving,
    which keeps market-data events flowing for the slow consumers to fall
    behind on. Deterministic given the runner's seed. *)
 let oracle_config : Fundamental_oracle.Config.t =
-  Symbol.Map.of_alist_exn
-    [ ( aapl
+  Symbol_id.Map.of_alist_exn
+    [ ( aapl_id
       , { Fundamental_oracle.Config.initial_price_cents = 15000
         ; volatility_cents_per_sec = 10.0
         ; mean_reversion_strength = 0.05
@@ -39,12 +44,12 @@ let market_maker_spec ~participant ~rng_seed =
     { bot = (module Market_maker_bot)
     ; config =
         Market_maker_bot.Config.create
-          ~symbol:aapl
+          ~symbol:aapl_id
           ~half_spread_cents:5
           ~size_per_level:100
           ~num_levels:3
     ; participant
-    ; symbols = [ aapl ]
+    ; symbols = [ aapl_id ]
     ; rng_seed
     ; (* Re-quote four times a second: a brisk stream of BBO updates. *)
       tick_interval = Time_ns.Span.of_sec 0.25
@@ -60,7 +65,7 @@ let slow_consumer_spec ~participant ~rng_seed ~read_delay =
     { bot = (module Slow_consumer_bot)
     ; config = Slow_consumer_bot.Config.create ~read_delay
     ; participant
-    ; symbols = [ aapl ]
+    ; symbols = [ aapl_id ]
     ; rng_seed
     ; tick_interval = Time_ns.Span.of_sec 5.0
     ; is_marketdata_consumer = true
@@ -95,7 +100,7 @@ let day_ioc_mix ~day_pct =
 
 let book_filler_config =
   Spammer.Config.create
-    ~symbols:[ aapl ]
+    ~symbols:[ aapl_id ]
     ~orders_per_burst:100
     ~buy_chance:(Percent.of_percentage 50.)
     ~marketable_chance:(Percent.of_percentage 0.)
@@ -106,7 +111,7 @@ let book_filler_config =
 
 let sweeper_config =
   Spammer.Config.create
-    ~symbols:[ aapl ]
+    ~symbols:[ aapl_id ]
     ~orders_per_burst:40
     ~buy_chance:(Percent.of_percentage 50.)
     ~marketable_chance:(Percent.of_percentage 100.)
@@ -125,7 +130,7 @@ let firehose_specs =
         { bot = (module Spammer)
         ; config
         ; participant = Participant.of_string participant
-        ; symbols = [ aapl ]
+        ; symbols = [ aapl_id ]
         ; rng_seed
         ; tick_interval = Time_ns.Span.of_ms 10.0
         ; is_marketdata_consumer = true

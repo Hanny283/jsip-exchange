@@ -22,12 +22,14 @@ module Position = struct
 end
 
 type t =
-  { positions : Position.t Symbol.Map.t Participant.Map.t
-  ; reference_prices : Price.t Symbol.Map.t
+  { positions : Position.t Symbol_id.Map.t Participant.Map.t
+  ; reference_prices : Price.t Symbol_id.Map.t
   }
 
 let empty =
-  { positions = Participant.Map.empty; reference_prices = Symbol.Map.empty }
+  { positions = Participant.Map.empty
+  ; reference_prices = Symbol_id.Map.empty
+  }
 ;;
 
 (* Cash realized by trading [trade_shares] signed shares (positive = buy,
@@ -102,7 +104,7 @@ let position t ~participant ~symbol =
 let set_position t ~participant ~symbol position =
   let by_symbol =
     Map.find t.positions participant
-    |> Option.value ~default:Symbol.Map.empty
+    |> Option.value ~default:Symbol_id.Map.empty
     |> Map.set ~key:symbol ~data:position
   in
   { t with positions = Map.set t.positions ~key:participant ~data:by_symbol }
@@ -156,7 +158,7 @@ let apply_trade_report t (event : Exchange_event.t) =
 module Summary = struct
   module Per_symbol = struct
     type t =
-      { symbol : Symbol.t
+      { symbol : Symbol_id.t
       ; inventory : int
       ; average_entry : Price.t option
       ; reference_price : Price.t option
@@ -177,7 +179,7 @@ end
 let summary t participant : Summary.t =
   let by_symbol =
     Map.find t.positions participant
-    |> Option.value ~default:Symbol.Map.empty
+    |> Option.value ~default:Symbol_id.Map.empty
   in
   let per_symbol =
     Map.to_alist by_symbol

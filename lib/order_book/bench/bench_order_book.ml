@@ -41,7 +41,7 @@ open Jsip_order_book
 (* Setup helpers *)
 (* ---------------------------------------------------------------- *)
 
-let aapl = Symbol.of_string "AAPL"
+let aapl = Symbol_id.of_int 0
 let alice = Participant.of_string "Alice"
 let bob = Participant.of_string "Bob"
 
@@ -97,7 +97,7 @@ let book_with_n_asks_same_price ?(price = 15_000) n =
 
 (** Build a matching engine with [n] resting sells on AAPL. *)
 let engine_with_n_asks ?(min_price = 10_000) n =
-  let engine = Matching_engine.create [ aapl ] in
+  let engine = Matching_engine.create ~num_symbols:1 in
   for i = 1 to n do
     ignore
       (Matching_engine.submit
@@ -328,30 +328,52 @@ let bench_find_match_alloc ~n =
 (* Symbol lookup (Matching_engine.book) benchmarks *)
 (* ---------------------------------------------------------------- *)
 
-(* The engine holds one order book per symbol and resolves a symbol to its
-   book on every operation. [book] is the pure lookup path — no matching work
-   — so it isolates that resolution cost. [submit]/[cancel] resolve a symbol
-   too, but then do matching, which would bury the lookup; that's why we
-   bench [book] alone. Vary the number of symbols the engine trades to see
-   how the lookup scales: with a tree keyed by the symbol string it's
-   O(log n) string comparisons; the goal of the upcoming interning change is
-   to make it O(1). *)
+(* The engine holds one order book per symbol id and resolves an id to its
+   book with a bounds check plus an array index. Requests now carry the id,
+   so the string hash happens at the edges (client parse, directory) — but
+   the hash-then-index path Exercise 2 built is kept alive here with a
+   bench-local name->id table, so before/after stays comparable:
+   [book_lookup] = hash the name, then index (Ex 2's engine-internal path);
+   [book_lookup_by_id] = index directly (Ex 4's wire path). *)
 
 let symbol_name i = Symbol.of_string [%string "SYM%{i#Int}"]
+let engine_with_n_symbols n = Matching_engine.create ~num_symbols:n
 
-let engine_with_n_symbols n =
-  Matching_engine.create (List.init n ~f:symbol_name)
+(* SYM[i] -> id [i], replicating Ex 2's engine-internal interning table. *)
+let ids_by_name n =
+  let table = Symbol.Table.create () in
+  for i = 0 to n - 1 do
+    Hashtbl.add_exn table ~key:(symbol_name i) ~data:(Symbol_id.of_int i)
+  done;
+  table
 ;;
 
 let bench_book_lookup ~n =
   let engine = engine_with_n_symbols n in
+  let ids = ids_by_name n in
   (* Resolve a symbol that exists, taken from the middle of the set. Build
      the query with a FRESH [Symbol.of_string] (not the value handed to
-     [create]) so the comparison actually walks the string's characters
+     [ids_by_name]) so the comparison actually walks the string's characters
      instead of short-circuiting on physical equality. *)
   let target = symbol_name (n / 2) in
   Bench.Test.create
     ~name:[%string "book_lookup (symbols=%{n#Int})"]
+    (fun () ->
+       ignore
+         (Option.bind
+            (Hashtbl.find ids target)
+            ~f:(Matching_engine.book engine)
+          : Order_book.t option))
+;;
+
+let bench_book_lookup_by_id ~n =
+  (* The request already carries the id: bounds check + array index, no
+     hashing at all. This is what the server pays per lookup after the wire
+     change. *)
+  let engine = engine_with_n_symbols n in
+  let target = Symbol_id.of_int (n / 2) in
+  Bench.Test.create
+    ~name:[%string "book_lookup_by_id (symbols=%{n#Int})"]
     (fun () ->
        ignore (Matching_engine.book engine target : Order_book.t option))
 ;;
@@ -367,19 +389,24 @@ let bench_book_lookup ~n =
    a fixed seed (identical across engine variants) and no random numbers are
    drawn in the timed loop. *)
 
-let lookup_all engine symbols =
+(* Each lookup goes name -> id (bench-local table) -> book, preserving the
+   hash-then-index path these patterns have always measured. *)
+let lookup_all engine ids symbols =
   Array.iter symbols ~f:(fun symbol ->
-    ignore (Matching_engine.book engine symbol : Order_book.t option))
+    ignore
+      (Option.bind (Hashtbl.find ids symbol) ~f:(Matching_engine.book engine)
+       : Order_book.t option))
 ;;
 
 let bench_sweep ~n =
-  (* Visit every symbol once, in create order: id order for an interned books
-     array (sequential, prefetchable), hash order for a hashtable's buckets
+  (* Visit every symbol once, in create order: id order for the books array
+     (sequential, prefetchable), hash order for the name table's buckets
      (scattered). *)
   let engine = engine_with_n_symbols n in
+  let ids = ids_by_name n in
   let symbols = Array.init n ~f:symbol_name in
   Bench.Test.create ~name:[%string "sweep (symbols=%{n#Int})"] (fun () ->
-    lookup_all engine symbols)
+    lookup_all engine ids symbols)
 ;;
 
 let bench_uniform ~n =
@@ -387,13 +414,14 @@ let bench_uniform ~n =
      most accesses miss it. Measures the full miss-chain length of one
      lookup. *)
   let engine = engine_with_n_symbols n in
+  let ids = ids_by_name n in
   let random = Random.State.make [| 42 |] in
   let symbols =
     Array.init n ~f:(fun (_ : int) ->
       symbol_name (Random.State.int random n))
   in
   Bench.Test.create ~name:[%string "uniform (symbols=%{n#Int})"] (fun () ->
-    lookup_all engine symbols)
+    lookup_all engine ids symbols)
 ;;
 
 let hot_symbol_count = 10
@@ -404,6 +432,7 @@ let bench_hot_set ~n =
      stay cached), the rest are uniform. Variant differences should shrink
      here — this is the "does it matter in practice" control. *)
   let engine = engine_with_n_symbols n in
+  let ids = ids_by_name n in
   let random = Random.State.make [| 43 |] in
   let symbols =
     Array.init n ~f:(fun (_ : int) ->
@@ -412,7 +441,7 @@ let bench_hot_set ~n =
       else symbol_name (Random.State.int random n))
   in
   Bench.Test.create ~name:[%string "hot_set (symbols=%{n#Int})"] (fun () ->
-    lookup_all engine symbols)
+    lookup_all engine ids symbols)
 ;;
 
 (* ---------------------------------------------------------------- *)
@@ -473,7 +502,11 @@ let () =
              (List.map sizes ~f:(fun n -> bench_snapshot ~n)) )
        ; ( "book-lookup"
          , Bench.make_command
-             (List.map symbol_counts ~f:(fun n -> bench_book_lookup ~n)) )
+             (List.concat
+                [ List.map symbol_counts ~f:(fun n -> bench_book_lookup ~n)
+                ; List.map symbol_counts ~f:(fun n ->
+                    bench_book_lookup_by_id ~n)
+                ]) )
        ; ( "access-patterns"
          , Bench.make_command
              (let ns = [ 100; 1_000; 10_000; 100_000 ] in

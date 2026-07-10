@@ -10,9 +10,13 @@ open Jsip_types
 
 type t [@@deriving sexp_of]
 
-(** Create a matching engine for the given symbols. Each symbol gets its own
-    order book. *)
-val create : Symbol.t list -> t
+(** Create an engine trading symbol ids [0 .. num_symbols - 1], one order
+    book per id. The name<->id assignment lives with the caller (the server's
+    registry, built from its symbol list); the engine never sees a name.
+    [num_symbols] rather than an id list because the books array's contract
+    is a dense id range — a list would invite sparse sets the array cannot
+    represent. *)
+val create : num_symbols:int -> t
 
 (** {2 Order submission} *)
 
@@ -57,6 +61,7 @@ val cancel
 
 (** {2 Queries} *)
 
-(** The order book for a given symbol, or [None] if the symbol is not traded
-    on this engine. *)
-val book : t -> Symbol.t -> Order_book.t option
+(** The order book for [id], or [None] if the id is out of range — i.e. not a
+    symbol this engine trades. The bounds check is the engine's id
+    validation; ids arrive off the wire unvalidated. *)
+val book : t -> Symbol_id.t -> Order_book.t option

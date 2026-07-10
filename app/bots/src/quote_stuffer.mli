@@ -42,7 +42,7 @@ module Config : sig
       [order_size] shares. The BBO cache starts empty and the id counter at
       zero. *)
   val create
-    :  symbols:Symbol.t list
+    :  symbols:Symbol_id.t list
     -> orders_per_burst:int
     -> order_size:Size.t
     -> t

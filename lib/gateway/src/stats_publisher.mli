@@ -62,8 +62,8 @@ type t
     - [request_queue_length] reports the matching loop's inbound queue
       occupancy. It is a closure because the server owns that pipe; called
       once per tick.
-    - [fundamental] returns the scenario oracle's fair price for a symbol, or
-      [None] for a symbol it does not price (and always, when the exchange
+    - [fundamental] returns the scenario oracle's fair price for a symbol id,
+      or [None] for a symbol it does not price (and always, when the exchange
       runs with no oracle). Each snapshot's [fundamentals] is this applied to
       every traded symbol. A closure because the oracle lives outside the
       gateway. *)
@@ -74,7 +74,7 @@ val create
   -> engine:Matching_engine.t
   -> symbols:Symbol.t list
   -> request_queue_length:(unit -> int)
-  -> fundamental:(Symbol.t -> Price.t option)
+  -> fundamental:(Symbol_id.t -> Price.t option)
   -> t
 
 (** [subscribe t] returns a pipe that receives every snapshot produced after

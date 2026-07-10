@@ -13,8 +13,8 @@ end
 
 type t =
   | Submit of Order.Request.t
-  | Book of Symbol.t
-  | Subscribe of Symbol.t
+  | Book of Symbol_id.t
+  | Subscribe of Symbol_id.t
   | Cancel of Client_order_id.t
 
 let parse_book_or_subscribe parts =
@@ -22,11 +22,11 @@ let parse_book_or_subscribe parts =
   | symbol_str :: _ ->
     let open Result.Let_syntax in
     let%bind symbol =
-      try Ok (Symbol.of_string symbol_str) with
+      try Ok (Symbol_id.of_string symbol_str) with
       | exn ->
         let exn_str = Exn.to_string exn in
         Or_error.error_string
-          [%string "invalid symbol: %{symbol_str}\nexception: %{exn_str}"]
+          [%string "invalid symbol id: %{symbol_str}\nexception: %{exn_str}"]
     in
     Ok symbol
   | [] -> Or_error.error_string "Bug: Impossible Case"
@@ -74,11 +74,11 @@ let parse_buy_or_sell parts side =
           [%string "invalid price: %{price_str}\nexception: %{exn_str}"]
     in
     let%bind symbol =
-      try Ok (Symbol.of_string symbol_str) with
+      try Ok (Symbol_id.of_string symbol_str) with
       | exn ->
         let exn_str = Exn.to_string exn in
         Or_error.error_string
-          [%string "invalid symbol: %{symbol_str}\nexception: %{exn_str}"]
+          [%string "invalid symbol id: %{symbol_str}\nexception: %{exn_str}"]
     in
     let%bind time_in_force, rest =
       match rest with

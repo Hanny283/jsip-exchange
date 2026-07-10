@@ -2,6 +2,7 @@ open! Core
 open Jsip_types
 open Jsip_order_book
 open Jsip_gateway
+open Jsip_test_harness
 
 (* Command parsing now lives in [Exchange_command]; its tests have moved to
    [test_exchange_command.ml]. What remains here is event formatting, which
@@ -15,7 +16,7 @@ let%expect_test "format_event: all event types" =
         { order_id = Order_id.of_string "1"
         ; participant = Participant.of_string "Alice"
         ; request =
-            { symbol = Symbol.of_string "AAPL"
+            { symbol = Harness.aapl
             ; side = Buy
             ; price = Price.of_int_cents 15000
             ; size = Size.of_int 100
@@ -25,7 +26,7 @@ let%expect_test "format_event: all event types" =
         }
     ; Fill
         { fill_id = 1
-        ; symbol = Symbol.of_string "AAPL"
+        ; symbol = Harness.aapl
         ; price = Price.of_int_cents 15000
         ; size = Size.of_int 100
         ; aggressor_order_id = Order_id.of_string "2"
@@ -39,7 +40,7 @@ let%expect_test "format_event: all event types" =
     ; Order_cancel
         { order_id = Order_id.of_string "3"
         ; participant = Participant.of_string "Charlie"
-        ; symbol = Symbol.of_string "TSLA"
+        ; symbol = Harness.tsla
         ; remaining_size = Size.of_int 50
         ; reason = Ioc_remainder
         ; client_order_id = Client_order_id.of_string "3"
@@ -47,7 +48,7 @@ let%expect_test "format_event: all event types" =
     ; Order_reject
         { participant = Participant.of_string "Alice"
         ; request =
-            { symbol = Symbol.of_string "GOOG"
+            { symbol = Harness.goog
             ; side = Sell
             ; price = Price.of_int_cents 28000
             ; size = Size.of_int 10
@@ -57,7 +58,7 @@ let%expect_test "format_event: all event types" =
         ; reason = "unknown symbol"
         }
     ; Best_bid_offer_update
-        { symbol = Symbol.of_string "AAPL"
+        { symbol = Harness.aapl
         ; bbo =
             { bid =
                 Some
@@ -71,10 +72,9 @@ let%expect_test "format_event: all event types" =
                   }
             }
         }
-    ; Best_bid_offer_update
-        { symbol = Symbol.of_string "AAPL"; bbo = Bbo.empty }
+    ; Best_bid_offer_update { symbol = Harness.aapl; bbo = Bbo.empty }
     ; Trade_report
-        { symbol = Symbol.of_string "AAPL"
+        { symbol = Harness.aapl
         ; price = Price.of_int_cents 15000
         ; size = Size.of_int 100
         }
@@ -83,13 +83,13 @@ let%expect_test "format_event: all event types" =
   List.iter events ~f:(fun e -> print_endline (Protocol.format_event e));
   [%expect
     {|
-    ACCEPTED id=1 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=2 BUY resting=1(Bob) client_id=1
-    CANCELLED client_id=3 id=3 TSLA remaining=50 reason=IOC_REMAINDER
-    REJECTED GOOG SELL 10@$280.00 reason=unknown symbol
-    BBO AAPL bid=$149.90 x200 ask=$150.10 x100
-    BBO AAPL bid=- ask=-
-    TRADE AAPL $150.00 x100
+    ACCEPTED id=1 0 BUY 100@$150.00 DAY
+    FILL fill_id=1 0 $150.00 x100 aggressor=2(Alice) client_id=2 BUY resting=1(Bob) client_id=1
+    CANCELLED client_id=3 id=3 1 remaining=50 reason=IOC_REMAINDER
+    REJECTED 2 SELL 10@$280.00 reason=unknown symbol
+    BBO 0 bid=$149.90 x200 ask=$150.10 x100
+    BBO 0 bid=- ask=-
+    TRADE 0 $150.00 x100
     |}]
 ;;
 
@@ -103,9 +103,10 @@ let%expect_test "round-trip: parse a command, submit, format result" =
     ~participant:Harness.bob
     t
     (Harness.sell ~price_cents:15000 ());
-  (* Parse a buy command from text and submit it *)
+  (* Parse a buy command from text and submit it. Phase-1 grammar: the symbol
+     token is the raw id (0 = the harness's AAPL slot). *)
   let request =
-    match Exchange_command.parse "BUY 1 AAPL 100 150.00" with
+    match Exchange_command.parse "BUY 1 0 100 150.00" with
     | Ok (Exchange_command.Submit request) -> request
     | Ok _ -> failwith "expected a Submit command"
     | Error err -> Error.raise err
@@ -119,11 +120,11 @@ let%expect_test "round-trip: parse a command, submit, format result" =
   print_endline (Protocol.format_events events);
   [%expect
     {|
-    ACCEPTED id=1 AAPL SELL 100@$150.00 DAY
-    BBO AAPL bid=- ask=$150.00 x100
-    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
-    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=1 BUY resting=1(Bob) client_id=1
-    TRADE AAPL $150.00 x100
-    BBO AAPL bid=- ask=-
+    ACCEPTED id=1 0 SELL 100@$150.00 DAY
+    BBO 0 bid=- ask=$150.00 x100
+    ACCEPTED id=2 0 BUY 100@$150.00 DAY
+    FILL fill_id=1 0 $150.00 x100 aggressor=2(Alice) client_id=1 BUY resting=1(Bob) client_id=1
+    TRADE 0 $150.00 x100
+    BBO 0 bid=- ask=-
     |}]
 ;;

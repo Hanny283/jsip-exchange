@@ -84,7 +84,7 @@ let%expect_test "build up, partially close, then mark to a trade print" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (inventory 100) (average_entry (15100))
+      (((symbol 0) (inventory 100) (average_entry (15100))
         (reference_price (15800)) (realized_cents 40000)
         (unrealized_cents 70000))))
      (total_realized_cents 40000) (total_unrealized_cents 70000))
@@ -93,7 +93,7 @@ let%expect_test "build up, partially close, then mark to a trade print" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (inventory -100) (average_entry (15100))
+      (((symbol 0) (inventory -100) (average_entry (15100))
         (reference_price (15800)) (realized_cents -40000)
         (unrealized_cents -70000))))
      (total_realized_cents -40000) (total_unrealized_cents -70000))
@@ -131,7 +131,7 @@ let%expect_test "closing to flat realizes fully and leaves nothing to mark" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (inventory 0) (average_entry ()) (reference_price (99999))
+      (((symbol 0) (inventory 0) (average_entry ()) (reference_price (99999))
         (realized_cents 15000) (unrealized_cents 0))))
      (total_realized_cents 15000) (total_unrealized_cents 0))
     |}]
@@ -172,7 +172,7 @@ let%expect_test "cover a short below entry realizes a profit" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (inventory -60) (average_entry (15000))
+      (((symbol 0) (inventory -60) (average_entry (15000))
         (reference_price (14000)) (realized_cents 40000)
         (unrealized_cents 60000))))
      (total_realized_cents 40000) (total_unrealized_cents 60000))
@@ -215,7 +215,7 @@ let%expect_test "a single sell flips a long through flat into a short" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (inventory -50) (average_entry (16000))
+      (((symbol 0) (inventory -50) (average_entry (16000))
         (reference_price (16500)) (realized_cents 100000)
         (unrealized_cents -25000))))
      (total_realized_cents 100000) (total_unrealized_cents -25000))
@@ -273,10 +273,10 @@ let%expect_test "summary sums realized and unrealized across symbols" =
   [%expect
     {|
     ((per_symbol
-      (((symbol AAPL) (inventory 60) (average_entry (10000))
+      (((symbol 0) (inventory 60) (average_entry (10000))
         (reference_price (11000)) (realized_cents 40000)
         (unrealized_cents 60000))
-       ((symbol TSLA) (inventory 50) (average_entry (20000))
+       ((symbol 1) (inventory 50) (average_entry (20000))
         (reference_price (19000)) (realized_cents 0) (unrealized_cents -50000))))
      (total_realized_cents 40000) (total_unrealized_cents 10000))
     |}]

@@ -2,34 +2,36 @@ open! Core
 open Jsip_types
 
 type t =
-  { symbol_ids : int Symbol.Table.t
-      (* Interning: the i-th symbol passed to [create] gets id [i], and
-         [books.(i)] is its order book. The symbol set is fixed at create
-         time, so ids are dense, stable, and the array never resizes. A
-         lookup is one string hash plus an O(1) array index instead of a walk
-         that grows with the number of symbols. *)
-  ; books : Order_book.t array
+  { books : Order_book.t array
+      (* [books.(i)] is the order book for symbol id [i]. Ids are dense
+         [0 .. num_symbols - 1] and requests carry them directly, so a lookup
+         is a bounds check plus an array index — no hashing. The name<->id
+         assignment lives with the caller (the server's registry); the engine
+         never sees a name. *)
   ; order_id_gen : Order_id.Generator.t
   ; mutable next_fill_id : int
   ; client_orders : Order.t Client_order_id.Table.t Participant.Table.t
   }
 [@@deriving sexp_of]
 
-let create symbols =
-  let symbol_ids = Symbol.Table.create () in
-  List.iteri symbols ~f:(fun id symbol ->
-    Hashtbl.add_exn symbol_ids ~key:symbol ~data:id);
-  let books = Array.of_list_map symbols ~f:Order_book.create in
-  { symbol_ids
-  ; books
+let create ~num_symbols =
+  let books =
+    Array.init num_symbols ~f:(fun id ->
+      Order_book.create (Symbol_id.of_int id))
+  in
+  { books
   ; order_id_gen = Order_id.Generator.create ()
   ; next_fill_id = 1
   ; client_orders = Participant.Table.create ()
   }
 ;;
 
+(* The bounds check IS the id validation: ids arrive off the wire unvalidated
+   (bin_io does not check), so nothing may index the array without passing
+   through here. *)
 let find_book t symbol =
-  Hashtbl.find t.symbol_ids symbol |> Option.map ~f:(fun id -> t.books.(id))
+  let id = Symbol_id.to_int symbol in
+  if id >= 0 && id < Array.length t.books then Some t.books.(id) else None
 ;;
 
 let book t symbol = find_book t symbol
@@ -101,7 +103,7 @@ let submit t (request : Order.Request.t) ~participant =
     match find_book t request.symbol with
     | None ->
       [ Exchange_event.Order_reject
-          { participant; request; reason = "unknown symbol" }
+          { participant; request; reason = "unknown symbol id" }
       ]
     | Some book ->
       let client_orders =

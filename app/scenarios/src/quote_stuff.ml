@@ -11,9 +11,14 @@ let description =
 
 let symbol = Symbol.of_string "AAPL"
 
+(* The exchange assigns ids positionally; a single-symbol scenario's only
+   symbol is id 0. Bots, the oracle, and market-data subscriptions speak the
+   id; [Scenario_config.symbols] keeps the name (the server's list). *)
+let symbol_id = Symbol_id.of_int 0
+
 let oracle_config =
-  Symbol.Map.of_alist_exn
-    [ ( symbol
+  Symbol_id.Map.of_alist_exn
+    [ ( symbol_id
       , { Jsip_fundamental.Fundamental_oracle.Config.initial_price_cents =
             15000
         ; volatility_cents_per_sec = 0.0
@@ -33,12 +38,12 @@ let quoter =
     { bot = (module Jsip_bots.Market_maker_bot_lijia)
     ; config =
         Jsip_bots.Market_maker_bot_lijia.Config.create
-          ~symbol
+          ~symbol:symbol_id
           ~half_spread_cents:5
           ~size_per_level:100
           ~num_levels:5
     ; participant = Participant.of_string "Quoter"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 1
     ; tick_interval = Time_ns.Span.of_sec 1.0
     ; is_marketdata_consumer = false
@@ -52,11 +57,11 @@ let stuffer =
     { bot = (module Jsip_bots.Quote_stuffer)
     ; config =
         Jsip_bots.Quote_stuffer.Config.create
-          ~symbols:[ symbol ]
+          ~symbols:[ symbol_id ]
           ~orders_per_burst:20
           ~order_size:(Size.of_int 1)
     ; participant = Participant.of_string "Stuffer"
-    ; symbols = [ symbol ]
+    ; symbols = [ symbol_id ]
     ; rng_seed = 2
     ; tick_interval = Time_ns.Span.of_ms 50.
     ; is_marketdata_consumer = true

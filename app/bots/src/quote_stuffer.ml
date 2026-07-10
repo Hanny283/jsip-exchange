@@ -5,10 +5,10 @@ module Bot_runtime = Jsip_bot_runtime.Bot_runtime
 
 module Config = struct
   type t =
-    { symbols : Symbol.t list
+    { symbols : Symbol_id.t list
     ; orders_per_burst : int
     ; order_size : Size.t
-    ; latest_bbo : Bbo.t Symbol.Table.t
+    ; latest_bbo : Bbo.t Symbol_id.Table.t
     ; mutable next_client_order_id : int
     }
 
@@ -16,7 +16,7 @@ module Config = struct
     { symbols
     ; orders_per_burst
     ; order_size
-    ; latest_bbo = Symbol.Table.create ()
+    ; latest_bbo = Symbol_id.Table.create ()
     ; next_client_order_id = 0
     }
   ;;

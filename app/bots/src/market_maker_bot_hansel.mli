@@ -24,7 +24,7 @@ module Config : sig
       - [max_spread_cents]: whale tolerance — stop quoting a symbol whose
         market spread exceeds this until it recovers. *)
   val create
-    :  symbols:Symbol.t list
+    :  symbols:Symbol_id.t list
     -> size_per_level:int
     -> num_levels:int
     -> inventory_skew_cents_per_share:int

@@ -123,13 +123,17 @@ let start
   ?(fundamental = fun _ -> None)
   ()
   =
-  let engine = Matching_engine.create symbols in
+  (* Symbol ids are positional: the i-th symbol of [symbols] is id [i]. The
+     engine and dispatcher work purely in ids; [symbols] itself is only used
+     for its length here and by the stats publisher's name bridge. *)
+  let num_symbols = List.length symbols in
+  let engine = Matching_engine.create ~num_symbols in
   (* One registry shared by everything that touches participant ids: the
      dispatcher (interns at login, routes by id) and the stats publisher
      (resolves flushed rows back to names). A fill names two participants, so
      an id has to mean the same thing to every component. *)
   let registry = Participant_id.Registry.create () in
-  let dispatcher = Dispatcher.create ~registry in
+  let dispatcher = Dispatcher.create ~registry ~num_symbols in
   let request_reader, request_writer = Pipe.create () in
   Pipe.set_size_budget request_writer request_queue_size_budget;
   let collector = Stats_collector.create () in
@@ -176,9 +180,22 @@ let start
         ; Rpc.Pipe_rpc.implement_direct
             Rpc_protocol.market_data_rpc
             (fun _state symbols writer ->
-               forward_feed
-                 (Dispatcher.subscribe_market_data dispatcher symbols)
-                 writer)
+               (* Ids arrive off the wire unvalidated; refuse the whole
+                  subscription rather than silently serving an empty feed for
+                  a symbol this exchange does not trade. *)
+               match
+                 List.find symbols ~f:(fun id ->
+                   Symbol_id.to_int id >= num_symbols)
+               with
+               | Some id ->
+                 return
+                   (Error
+                      (Error.create_s
+                         [%message "unknown symbol id" (id : Symbol_id.t)]))
+               | None ->
+                 forward_feed
+                   (Dispatcher.subscribe_market_data dispatcher symbols)
+                   writer)
         ; Rpc.Pipe_rpc.implement_direct
             Rpc_protocol.audit_log_rpc
             (fun _state () writer ->

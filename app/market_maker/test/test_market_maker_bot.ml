@@ -25,7 +25,7 @@ let bob = Harness.bob
 let fair_value_cents = 15000
 
 let oracle_config =
-  Symbol.Map.of_alist_exn
+  Symbol_id.Map.of_alist_exn
     [ ( aapl
       , { Fundamental_oracle.Config.initial_price_cents = fair_value_cents
         ; volatility_cents_per_sec = 0.0

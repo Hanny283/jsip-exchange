@@ -13,14 +13,19 @@ let description =
 
 let symbol = Symbol.of_string "AAPL"
 
+(* The exchange assigns ids positionally; a single-symbol scenario's only
+   symbol is id 0. Bots, the oracle, and market-data subscriptions speak the
+   id; [Scenario_config.symbols] keeps the name (the server's list). *)
+let symbol_id = Symbol_id.of_int 0
+
 (* A deliberately aggressive configuration: every 100ms the bot adds 50
    resting orders, each on a fresh price level ([level_spacing_cents = 1]),
    sitting at least $5 off the fundamental so nothing ever fills. Dial
    [orders_per_tick] or the [tick_interval] down for a gentler run. *)
 let configure () : Scenario_config.t =
   let oracle_config =
-    Symbol.Map.of_alist_exn
-      [ ( symbol
+    Symbol_id.Map.of_alist_exn
+      [ ( symbol_id
         , { Fundamental_oracle.Config.initial_price_cents = 15000
           ; volatility_cents_per_sec = 5.0
           ; mean_reversion_strength = 0.1
@@ -29,7 +34,7 @@ let configure () : Scenario_config.t =
       ]
   in
   let book_filler_config : Jsip_bots.Book_filler_sadat.Config.t =
-    { symbols = [ symbol ]
+    { symbols = [ symbol_id ]
     ; orders_per_tick = 50
     ; order_size = 1
     ; price_offset_cents = 500
@@ -46,7 +51,7 @@ let configure () : Scenario_config.t =
           { bot = (module Jsip_bots.Book_filler_sadat)
           ; config = book_filler_config
           ; participant = Participant.of_string "BookFiller"
-          ; symbols = [ symbol ]
+          ; symbols = [ symbol_id ]
           ; rng_seed = 0
           ; tick_interval = Time_ns.Span.of_ms 100.0
           ; is_marketdata_consumer = false

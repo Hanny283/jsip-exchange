@@ -10,7 +10,7 @@ type t =
   | Order_cancel of
       { order_id : Order_id.t
       ; participant : Participant.t
-      ; symbol : Symbol.t
+      ; symbol : Symbol_id.t
       ; remaining_size : Size.t
       ; reason : Cancel_reason.t
       ; client_order_id : Client_order_id.t
@@ -21,11 +21,11 @@ type t =
       ; reason : string
       }
   | Best_bid_offer_update of
-      { symbol : Symbol.t
+      { symbol : Symbol_id.t
       ; bbo : Bbo.t
       }
   | Trade_report of
-      { symbol : Symbol.t
+      { symbol : Symbol_id.t
       ; price : Price.t
       ; size : Size.t
       }
@@ -48,7 +48,7 @@ let to_string_hum event =
     "Your order "
     ^ Size.to_string event.size
     ^ " "
-    ^ Symbol.to_string event.symbol
+    ^ Symbol_id.to_string event.symbol
     ^ " filled at "
     ^ Price.to_string event.price
   | Order_cancel event ->
@@ -61,12 +61,12 @@ let to_string_hum event =
     ^ " was rejected"
   | Best_bid_offer_update event ->
     "The BBO for "
-    ^ Symbol.to_string event.symbol
+    ^ Symbol_id.to_string event.symbol
     ^ " is "
     ^ Bbo.to_string event.bbo
   | Trade_report event ->
     [%string
-      "Trade Report: %{event.symbol#Symbol} %{event.price#Price} \
+      "Trade Report: %{event.symbol#Symbol_id} %{event.price#Price} \
        %{event.size#Size}"]
   | Cancel_reject event ->
     [%string

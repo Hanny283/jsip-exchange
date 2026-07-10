@@ -58,7 +58,7 @@ module Config = struct
      strategy's state machine ([phase]), the fill-driven accounting ([book]),
      and a market-data cache ([last_bbo]). *)
   type t =
-    { target_symbol : Symbol.t
+    { target_symbol : Symbol_id.t
         (* The single symbol to manipulate. Concentrating every clip on one
            symbol is what moves its price; spreading across many would dilute
            the impact to nothing. *)
@@ -259,7 +259,7 @@ let on_tick (config : Config.t) context =
 let on_event (config : Config.t) context (event : Exchange_event.t) =
   (match event with
    | Best_bid_offer_update { symbol; bbo } ->
-     if Symbol.equal symbol config.target_symbol
+     if Symbol_id.equal symbol config.target_symbol
      then (
        config.last_bbo <- Some bbo;
        match config.phase with
@@ -271,7 +271,7 @@ let on_event (config : Config.t) context (event : Exchange_event.t) =
           | None -> ())
        | Accumulate _ | Distribute | Done -> ())
    | Fill fill ->
-     if Symbol.equal fill.symbol config.target_symbol
+     if Symbol_id.equal fill.symbol config.target_symbol
      then apply_own_fill context config fill
    | Order_accept _ | Order_cancel _ | Order_reject _ | Cancel_reject _
    | Trade_report _ ->

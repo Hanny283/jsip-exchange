@@ -87,77 +87,75 @@ let print_snapshot (snapshot : Exchange_stats.t) =
 
 let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
   with_server
-    ~symbols:[ Harness.aapl ]
+    ~symbols:[ Symbol.of_string "AAPL" ]
     ~stats_interval:stats_interval_never
     (fun ~server ~port ->
-       let%bind alice = connect_as ~port Harness.alice in
-       let%bind bob = connect_as ~port Harness.bob in
-       (* The stats RPC needs no login, but [connect_as] is the easiest way
-          to get a [client]; the observer's session shows up as a third row
-          in the pipe occupancy. *)
-       let%bind observer =
-         connect_as ~port (Participant.of_string "Stats")
-       in
-       let%bind stats = subscribe_stats observer in
-       (* Bob rests two sells with pinned client_order_ids: the first will be
-          crossed by Alice, the second cancelled. The session-feed prints
-          between steps guarantee the matching loop processed each command. *)
-       let sell_to_cross : Order.Request.t =
-         { symbol = Harness.aapl
-         ; side = Sell
-         ; price = Price.of_int_cents 15000
-         ; size = Size.of_int 100
-         ; time_in_force = Day
-         ; client_order_id = Client_order_id.of_string "101"
-         }
-       in
-       let%bind () = rpc_submit bob sell_to_cross in
-       [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
-       let sell_to_cancel : Order.Request.t =
-         { sell_to_cross with
-           price = Price.of_int_cents 15100
-         ; size = Size.of_int 50
-         ; client_order_id = Client_order_id.of_string "102"
-         }
-       in
-       let%bind () = rpc_submit bob sell_to_cancel in
-       [%expect {| [Bob] ACCEPTED id=2 AAPL SELL 50@$151.00 DAY |}];
-       (* Alice's buy crosses Bob's first sell and rests its remainder, so
-          there is book depth left to report at sampling time. *)
-       let crossing_buy : Order.Request.t =
-         { symbol = Harness.aapl
-         ; side = Buy
-         ; price = Price.of_int_cents 15000
-         ; size = Size.of_int 150
-         ; time_in_force = Day
-         ; client_order_id = Client_order_id.of_string "103"
-         }
-       in
-       let%bind () = rpc_submit alice crossing_buy in
-       [%expect
-         {|
-         [Alice] ACCEPTED id=3 AAPL BUY 150@$150.00 DAY
-         [Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
-         [Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
+      let%bind alice = connect_as ~port Harness.alice in
+      let%bind bob = connect_as ~port Harness.bob in
+      (* The stats RPC needs no login, but [connect_as] is the easiest way to
+         get a [client]; the observer's session shows up as a third row in
+         the pipe occupancy. *)
+      let%bind observer = connect_as ~port (Participant.of_string "Stats") in
+      let%bind stats = subscribe_stats observer in
+      (* Bob rests two sells with pinned client_order_ids: the first will be
+         crossed by Alice, the second cancelled. The session-feed prints
+         between steps guarantee the matching loop processed each command. *)
+      let sell_to_cross : Order.Request.t =
+        { symbol = Harness.aapl
+        ; side = Sell
+        ; price = Price.of_int_cents 15000
+        ; size = Size.of_int 100
+        ; time_in_force = Day
+        ; client_order_id = Client_order_id.of_string "101"
+        }
+      in
+      let%bind () = rpc_submit bob sell_to_cross in
+      [%expect {| [Bob] ACCEPTED id=1 0 SELL 100@$150.00 DAY |}];
+      let sell_to_cancel : Order.Request.t =
+        { sell_to_cross with
+          price = Price.of_int_cents 15100
+        ; size = Size.of_int 50
+        ; client_order_id = Client_order_id.of_string "102"
+        }
+      in
+      let%bind () = rpc_submit bob sell_to_cancel in
+      [%expect {| [Bob] ACCEPTED id=2 0 SELL 50@$151.00 DAY |}];
+      (* Alice's buy crosses Bob's first sell and rests its remainder, so
+         there is book depth left to report at sampling time. *)
+      let crossing_buy : Order.Request.t =
+        { symbol = Harness.aapl
+        ; side = Buy
+        ; price = Price.of_int_cents 15000
+        ; size = Size.of_int 150
+        ; time_in_force = Day
+        ; client_order_id = Client_order_id.of_string "103"
+        }
+      in
+      let%bind () = rpc_submit alice crossing_buy in
+      [%expect
+        {|
+         [Alice] ACCEPTED id=3 0 BUY 150@$150.00 DAY
+         [Alice] FILL fill_id=1 0 $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
+         [Bob] FILL fill_id=1 0 $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
          |}];
-       let%bind cancel_result =
-         Rpc.Rpc.dispatch_exn
-           Rpc_protocol.cancel_order_rpc
-           (connection bob)
-           (Client_order_id.of_string "102")
-       in
-       ok_exn cancel_result;
-       [%expect
-         {| [Bob] CANCELLED client_id=102 id=2 AAPL remaining=50 reason=PARTICIPANT_REQUESTED |}];
-       (* The startup tick consumed seq 1 before any client connected, so the
-          first forced snapshot is seq 2, and it covers all four commands
-          above. *)
-       let%bind () = Scheduler.yield_until_no_jobs_remain () in
-       Exchange_server.For_testing.publish_stats_snapshot server;
-       let%bind snapshot = read_snapshot_exn stats in
-       print_snapshot snapshot;
-       [%expect
-         {|
+      let%bind cancel_result =
+        Rpc.Rpc.dispatch_exn
+          Rpc_protocol.cancel_order_rpc
+          (connection bob)
+          (Client_order_id.of_string "102")
+      in
+      ok_exn cancel_result;
+      [%expect
+        {| [Bob] CANCELLED client_id=102 id=2 0 remaining=50 reason=PARTICIPANT_REQUESTED |}];
+      (* The startup tick consumed seq 1 before any client connected, so the
+         first forced snapshot is seq 2, and it covers all four commands
+         above. *)
+      let%bind () = Scheduler.yield_until_no_jobs_remain () in
+      Exchange_server.For_testing.publish_stats_snapshot server;
+      let%bind snapshot = read_snapshot_exn stats in
+      print_snapshot snapshot;
+      [%expect
+        {|
          seq=2
          participant Alice: orders_submitted=1 cancels_submitted=0 resting_orders=1
          participant Bob: orders_submitted=2 cancels_submitted=1 resting_orders=0
@@ -167,16 +165,16 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
          loop: iterations=4
          gc: live_words > 0 = true
          |}];
-       (* A second forced snapshot with no traffic in between: interval
-          counters reset to zero, point-in-time facts (resting orders, book
-          depth, pipe counts) are unchanged, and seq bumps by one. Bob
-          disappears from the participants: he has no interval activity and
-          nothing resting. *)
-       Exchange_server.For_testing.publish_stats_snapshot server;
-       let%bind snapshot = read_snapshot_exn stats in
-       print_snapshot snapshot;
-       [%expect
-         {|
+      (* A second forced snapshot with no traffic in between: interval
+         counters reset to zero, point-in-time facts (resting orders, book
+         depth, pipe counts) are unchanged, and seq bumps by one. Bob
+         disappears from the participants: he has no interval activity and
+         nothing resting. *)
+      Exchange_server.For_testing.publish_stats_snapshot server;
+      let%bind snapshot = read_snapshot_exn stats in
+      print_snapshot snapshot;
+      [%expect
+        {|
          seq=3
          participant Alice: orders_submitted=0 cancels_submitted=0 resting_orders=1
          book AAPL: bbo=[$150.00 x50 / -] bids=[size=50 orders=1] asks=[size=0 orders=0]
@@ -185,53 +183,51 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
          loop: iterations=0
          gc: live_words > 0 = true
          |}];
-       return ())
+      return ())
 ;;
 
 let%expect_test "e2e: every stats subscriber gets each snapshot; a closed \
                  one is dropped"
   =
   with_server
-    ~symbols:[ Harness.aapl ]
+    ~symbols:[ Symbol.of_string "AAPL" ]
     ~stats_interval:stats_interval_never
     (fun ~server ~port ->
-       let%bind observer =
-         connect_as ~port (Participant.of_string "Stats")
-       in
-       let%bind stats_a = subscribe_stats observer in
-       let%bind stats_b = subscribe_stats observer in
-       let stats_pipe_count (snapshot : Exchange_stats.t) =
-         List.length snapshot.pipes.stats_subscribers
-       in
-       Exchange_server.For_testing.publish_stats_snapshot server;
-       let%bind snapshot_a = read_snapshot_exn stats_a in
-       let%bind snapshot_b = read_snapshot_exn stats_b in
-       print_s
-         [%message
-           "both subscribers saw the tick"
-             ~seq_a:(snapshot_a.seq : int)
-             ~seq_b:(snapshot_b.seq : int)
-             ~stats_pipes:(stats_pipe_count snapshot_a : int)];
-       [%expect
-         {| ("both subscribers saw the tick" (seq_a 2) (seq_b 2) (stats_pipes 2)) |}];
-       (* Closing one reader unregisters it from the publisher's bag: the
-          next tick still succeeds, and it reports one remaining stats pipe. *)
-       Pipe.close_read stats_a;
-       (* The close reaches the server as an abort message on the observer's
-          connection, so a yield alone doesn't cover it. RPC messages on one
-          connection are processed in order: once a round-trip on the same
-          connection completes, the server has seen the abort, and the final
-          yield runs its local unsubscribe job. *)
-       let%bind () = Scheduler.yield_until_no_jobs_remain () in
-       let%bind (_ : Book.t option) = rpc_book observer Harness.aapl in
-       let%bind () = Scheduler.yield_until_no_jobs_remain () in
-       Exchange_server.For_testing.publish_stats_snapshot server;
-       let%bind snapshot_b = read_snapshot_exn stats_b in
-       print_s
-         [%message
-           "after closing one reader"
-             ~seq_b:(snapshot_b.seq : int)
-             ~stats_pipes:(stats_pipe_count snapshot_b : int)];
-       [%expect {| ("after closing one reader" (seq_b 3) (stats_pipes 1)) |}];
-       return ())
+      let%bind observer = connect_as ~port (Participant.of_string "Stats") in
+      let%bind stats_a = subscribe_stats observer in
+      let%bind stats_b = subscribe_stats observer in
+      let stats_pipe_count (snapshot : Exchange_stats.t) =
+        List.length snapshot.pipes.stats_subscribers
+      in
+      Exchange_server.For_testing.publish_stats_snapshot server;
+      let%bind snapshot_a = read_snapshot_exn stats_a in
+      let%bind snapshot_b = read_snapshot_exn stats_b in
+      print_s
+        [%message
+          "both subscribers saw the tick"
+            ~seq_a:(snapshot_a.seq : int)
+            ~seq_b:(snapshot_b.seq : int)
+            ~stats_pipes:(stats_pipe_count snapshot_a : int)];
+      [%expect
+        {| ("both subscribers saw the tick" (seq_a 2) (seq_b 2) (stats_pipes 2)) |}];
+      (* Closing one reader unregisters it from the publisher's bag: the next
+         tick still succeeds, and it reports one remaining stats pipe. *)
+      Pipe.close_read stats_a;
+      (* The close reaches the server as an abort message on the observer's
+         connection, so a yield alone doesn't cover it. RPC messages on one
+         connection are processed in order: once a round-trip on the same
+         connection completes, the server has seen the abort, and the final
+         yield runs its local unsubscribe job. *)
+      let%bind () = Scheduler.yield_until_no_jobs_remain () in
+      let%bind (_ : Book.t option) = rpc_book observer Harness.aapl in
+      let%bind () = Scheduler.yield_until_no_jobs_remain () in
+      Exchange_server.For_testing.publish_stats_snapshot server;
+      let%bind snapshot_b = read_snapshot_exn stats_b in
+      print_s
+        [%message
+          "after closing one reader"
+            ~seq_b:(snapshot_b.seq : int)
+            ~stats_pipes:(stats_pipe_count snapshot_b : int)];
+      [%expect {| ("after closing one reader" (seq_b 3) (stats_pipes 1)) |}];
+      return ())
 ;;

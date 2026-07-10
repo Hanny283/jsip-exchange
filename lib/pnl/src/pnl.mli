@@ -56,7 +56,7 @@ module Summary : sig
   (** One symbol's line in a {!t}. *)
   module Per_symbol : sig
     type t =
-      { symbol : Symbol.t
+      { symbol : Symbol_id.t
       ; inventory : int (** Signed shares: positive long, negative short. *)
       ; average_entry : Price.t option
       (** Average price the open position was entered at, or [None] when

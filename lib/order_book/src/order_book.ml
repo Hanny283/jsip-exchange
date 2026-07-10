@@ -2,7 +2,7 @@ open! Core
 open Jsip_types
 
 type t =
-  { symbol : Symbol.t
+  { symbol : Symbol_id.t
   ; mutable bids : Order.t Queue.t Price.Map.t
   ; mutable asks : Order.t Queue.t Price.Map.t
   ; mutable identifiers : Order.t Order_id.Map.t
