@@ -357,6 +357,92 @@ let bench_book_lookup ~n =
 ;;
 
 (* ---------------------------------------------------------------- *)
+(* Cache access-pattern benchmarks *)
+(* ---------------------------------------------------------------- *)
+
+(* [bench_book_lookup] hammers one symbol whose cache lines stay in L1 after
+   the first hit, so it measures instruction path, not memory behavior. These
+   patterns instead touch a working set of [n] symbols per timed run — divide
+   Time/Run by [n] for per-lookup cost. Lookup sequences are precomputed with
+   a fixed seed (identical across engine variants) and no random numbers are
+   drawn in the timed loop. *)
+
+let lookup_all engine symbols =
+  Array.iter symbols ~f:(fun symbol ->
+    ignore (Matching_engine.book engine symbol : Order_book.t option))
+;;
+
+let bench_sweep ~n =
+  (* Visit every symbol once, in create order: id order for an interned books
+     array (sequential, prefetchable), hash order for a hashtable's buckets
+     (scattered). *)
+  let engine = engine_with_n_symbols n in
+  let symbols = Array.init n ~f:symbol_name in
+  Bench.Test.create ~name:[%string "sweep (symbols=%{n#Int})"] (fun () ->
+    lookup_all engine symbols)
+;;
+
+let bench_uniform ~n =
+  (* Uniform-random lookups: no locality, so once [n] outgrows a cache level
+     most accesses miss it. Measures the full miss-chain length of one
+     lookup. *)
+  let engine = engine_with_n_symbols n in
+  let random = Random.State.make [| 42 |] in
+  let symbols =
+    Array.init n ~f:(fun (_ : int) ->
+      symbol_name (Random.State.int random n))
+  in
+  Bench.Test.create ~name:[%string "uniform (symbols=%{n#Int})"] (fun () ->
+    lookup_all engine symbols)
+;;
+
+let hot_symbol_count = 10
+let hot_fraction = 0.9
+
+let bench_hot_set ~n =
+  (* Realistic exchange traffic: most lookups hit a few hot symbols (which
+     stay cached), the rest are uniform. Variant differences should shrink
+     here — this is the "does it matter in practice" control. *)
+  let engine = engine_with_n_symbols n in
+  let random = Random.State.make [| 43 |] in
+  let symbols =
+    Array.init n ~f:(fun (_ : int) ->
+      if Float.( < ) (Random.State.float random 1.0) hot_fraction
+      then symbol_name (Random.State.int random hot_symbol_count)
+      else symbol_name (Random.State.int random n))
+  in
+  Bench.Test.create ~name:[%string "hot_set (symbols=%{n#Int})"] (fun () ->
+    lookup_all engine symbols)
+;;
+
+(* ---------------------------------------------------------------- *)
+(* Load-factor benchmarks (raw fixed-size table, engine-independent) *)
+(* ---------------------------------------------------------------- *)
+
+let bench_table_load_factor ~n ~capacity ~label =
+  (* A growth-disallowed table trades bucket-array density against bucket
+     depth: a small capacity packs the bucket array into fewer cache lines
+     but hangs more entries off each bucket; a large capacity spreads shallow
+     buckets across more lines. Uniform-random lookups expose the trade.
+     Values are [int]s so the measurement isolates the index structure
+     itself. *)
+  let table = Symbol.Table.create ~growth_allowed:false ~size:capacity () in
+  for i = 0 to n - 1 do
+    Hashtbl.add_exn table ~key:(symbol_name i) ~data:i
+  done;
+  let random = Random.State.make [| 42 |] in
+  let symbols =
+    Array.init n ~f:(fun (_ : int) ->
+      symbol_name (Random.State.int random n))
+  in
+  Bench.Test.create
+    ~name:[%string "lookup (n=%{n#Int}, capacity=%{label})"]
+    (fun () ->
+       Array.iter symbols ~f:(fun symbol ->
+         ignore (Hashtbl.find table symbol : int option)))
+;;
+
+(* ---------------------------------------------------------------- *)
 (* Main *)
 (* ---------------------------------------------------------------- *)
 
@@ -388,5 +474,20 @@ let () =
        ; ( "book-lookup"
          , Bench.make_command
              (List.map symbol_counts ~f:(fun n -> bench_book_lookup ~n)) )
+       ; ( "access-patterns"
+         , Bench.make_command
+             (let ns = [ 100; 1_000; 10_000; 100_000 ] in
+              List.concat
+                [ List.map ns ~f:(fun n -> bench_sweep ~n)
+                ; List.map ns ~f:(fun n -> bench_uniform ~n)
+                ; List.map ns ~f:(fun n -> bench_hot_set ~n)
+                ]) )
+       ; ( "load-factor"
+         , Bench.make_command
+             (List.concat_map [ 10_000; 100_000 ] ~f:(fun n ->
+                [ bench_table_load_factor ~n ~capacity:(n / 4) ~label:"n/4"
+                ; bench_table_load_factor ~n ~capacity:n ~label:"n"
+                ; bench_table_load_factor ~n ~capacity:(n * 4) ~label:"4n"
+                ])) )
        ])
 ;;
