@@ -26,7 +26,7 @@ let%expect_test "dashboard-recent-samples RPC" =
   [%expect
     {|
     (Rpc (query 2c01d06c34b0a95841c2f2ddd8090f5b)
-     (response abd2fa386e1dad22535ed01cdcd82b03))
+     (response 14be18696a3e472bab1ca872d724ce35))
     |}]
 ;;
 

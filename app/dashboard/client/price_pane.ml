@@ -16,7 +16,7 @@ let price_body (points : Dashboard_state.Price_view.t) ~symbol =
   | [] ->
     {%html|
       <div %{Styles.empty_note}>
-        no prices for %{symbol#Symbol} in window yet
+        no prices for %{symbol#Symbol_id} in window yet
       </div>
     |}
   | _ :: _ ->
@@ -68,16 +68,16 @@ let price_body (points : Dashboard_state.Price_view.t) ~symbol =
 let select_block ~symbols ~symbol ~set_selected =
   let options =
     List.map symbols ~f:(fun sym ->
-      let name = Symbol.to_string sym in
+      let name = Symbol_id.to_string sym in
       {%html|<option value=%{name}>#{name}</option>|})
   in
   let on_change (_ : _ Js_of_ocaml.Js.t) value =
-    (* Values round-trip through [Symbol.to_string], so [find] normally
-       succeeds; matching (rather than [Symbol.of_string]) keeps this handler
-       total and raise-free. *)
+    (* Values round-trip through [Symbol_id.to_string], so [find] normally
+       succeeds; matching (rather than [Symbol_id.of_string]) keeps this
+       handler total and raise-free. *)
     match
       List.find symbols ~f:(fun sym ->
-        String.equal (Symbol.to_string sym) value)
+        String.equal (Symbol_id.to_string sym) value)
     with
     | Some sym -> set_selected (Some sym)
     | None -> Effect.Ignore
@@ -87,7 +87,7 @@ let select_block ~symbols ~symbol ~set_selected =
       <span %{Styles.tile_label}>symbol</span>
       <select
         %{Styles.select_input}
-        %{Vdom.Attr.value_prop (Symbol.to_string symbol)}
+        %{Vdom.Attr.value_prop (Symbol_id.to_string symbol)}
         on_change=%{on_change}>
         *{options}
       </select>
@@ -96,14 +96,16 @@ let select_block ~symbols ~symbol ~set_selected =
 ;;
 
 let component ~(state : Dashboard_state.t Bonsai.t) (local_ graph) =
-  let selected, set_selected = Bonsai.state (None : Symbol.t option) graph in
+  let selected, set_selected =
+    Bonsai.state (None : Symbol_id.t option) graph
+  in
   let%arr state and selected and set_selected in
   let symbols = Dashboard_state.symbols state in
   (* The selection survives symbols coming and going: fall back to the first
      symbol while the selected one is absent from the window. *)
   let effective =
     match selected with
-    | Some symbol when List.mem symbols symbol ~equal:Symbol.equal ->
+    | Some symbol when List.mem symbols symbol ~equal:Symbol_id.equal ->
       Some symbol
     | Some _ | None -> List.hd symbols
   in

@@ -54,7 +54,7 @@ let print_snapshot (snapshot : Exchange_stats.t) =
     let { Exchange_stats.Book_depth.bbo; bids; asks } = depth in
     print_endline
       [%string
-        "book %{symbol#Symbol}: bbo=[%{Bbo.to_string bbo}] \
+        "book %{symbol#Symbol_id}: bbo=[%{Bbo.to_string bbo}] \
          bids=[%{side_to_string bids}] asks=[%{side_to_string asks}]"]);
   let { Exchange_stats.Pipe_occupancy.request_queue
       ; audit_subscribers
@@ -156,15 +156,15 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
       print_snapshot snapshot;
       [%expect
         {|
-         seq=2
-         participant Alice: orders_submitted=1 cancels_submitted=0 resting_orders=1
-         participant Bob: orders_submitted=2 cancels_submitted=1 resting_orders=0
-         book AAPL: bbo=[$150.00 x50 / -] bids=[size=50 orders=1] asks=[size=0 orders=0]
-         pipes: request_queue=0 audit_subscribers=0 market_data_symbols=0 sessions=3 stats_subscribers=1
-         latencies: submits=3 cancels=1
-         loop: iterations=4
-         gc: live_words > 0 = true
-         |}];
+        seq=2
+        participant Alice: orders_submitted=1 cancels_submitted=0 resting_orders=1
+        participant Bob: orders_submitted=2 cancels_submitted=1 resting_orders=0
+        book 0: bbo=[$150.00 x50 / -] bids=[size=50 orders=1] asks=[size=0 orders=0]
+        pipes: request_queue=0 audit_subscribers=0 market_data_symbols=0 sessions=3 stats_subscribers=1
+        latencies: submits=3 cancels=1
+        loop: iterations=4
+        gc: live_words > 0 = true
+        |}];
       (* A second forced snapshot with no traffic in between: interval
          counters reset to zero, point-in-time facts (resting orders, book
          depth, pipe counts) are unchanged, and seq bumps by one. Bob
@@ -175,14 +175,14 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
       print_snapshot snapshot;
       [%expect
         {|
-         seq=3
-         participant Alice: orders_submitted=0 cancels_submitted=0 resting_orders=1
-         book AAPL: bbo=[$150.00 x50 / -] bids=[size=50 orders=1] asks=[size=0 orders=0]
-         pipes: request_queue=0 audit_subscribers=0 market_data_symbols=0 sessions=3 stats_subscribers=1
-         latencies: submits=0 cancels=0
-         loop: iterations=0
-         gc: live_words > 0 = true
-         |}];
+        seq=3
+        participant Alice: orders_submitted=0 cancels_submitted=0 resting_orders=1
+        book 0: bbo=[$150.00 x50 / -] bids=[size=50 orders=1] asks=[size=0 orders=0]
+        pipes: request_queue=0 audit_subscribers=0 market_data_symbols=0 sessions=3 stats_subscribers=1
+        latencies: submits=0 cancels=0
+        loop: iterations=0
+        gc: live_words > 0 = true
+        |}];
       return ())
 ;;
 

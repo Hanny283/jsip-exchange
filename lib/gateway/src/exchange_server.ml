@@ -143,7 +143,7 @@ let start
       ~dispatcher
       ~registry
       ~engine
-      ~symbols
+      ~num_symbols
       ~request_queue_length:(fun () -> Pipe.length request_writer)
       ~fundamental
   in

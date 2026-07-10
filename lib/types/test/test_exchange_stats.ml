@@ -14,7 +14,7 @@ let histogram_of spans =
 let%expect_test "snapshot sexp shape is pinned" =
   let alice = Participant.of_string "Alice" in
   let bob = Participant.of_string "Bob" in
-  let aapl = Symbol.of_string "AAPL" in
+  let aapl = Symbol_id.of_int 0 in
   let bbo : Bbo.t =
     { bid = Some { price = Price.of_int_cents 9_950; size = Size.of_int 10 }
     ; ask = Some { price = Price.of_int_cents 10_050; size = Size.of_int 5 }
@@ -85,18 +85,18 @@ let%expect_test "snapshot sexp shape is pinned" =
       ((submit (((8us 16us) 1) ((16us 32us) 1))) (cancel (((4us 8us) 1)))))
      (pipes
       ((request_queue 2) (audit_subscribers (0 3))
-       (market_data_subscribers ((AAPL (1)))) (sessions ((Alice 0) (Bob 4)))
+       (market_data_subscribers ((0 (1)))) (sessions ((Alice 0) (Bob 4)))
        (stats_subscribers (0))))
      (participants
       ((Alice ((orders_submitted 2) (cancels_submitted 0) (resting_orders 1)))
        (Bob ((orders_submitted 1) (cancels_submitted 1) (resting_orders 2)))))
      (books
-      ((AAPL
+      ((0
         ((bbo
           ((bid (((price 9950) (size 10)))) (ask (((price 10050) (size 5))))))
          (bids ((total_size 10) (order_count 1)))
          (asks ((total_size 5) (order_count 2)))))))
-     (fundamentals ((AAPL 10000)))
+     (fundamentals ((0 10000)))
      (loop ((iterations 3) (gap (((512us 1.024ms) 1) ((1.024ms 2.048ms) 1))))))
     |}]
 ;;

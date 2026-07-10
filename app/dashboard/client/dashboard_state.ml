@@ -41,7 +41,7 @@ let latest_seq t = t.cursor
 let symbols t =
   List.concat_map t.samples ~f:(fun (sample : Exchange_stats.t) ->
     List.map sample.books ~f:fst)
-  |> List.dedup_and_sort ~compare:Symbol.compare
+  |> List.dedup_and_sort ~compare:Symbol_id.compare
 ;;
 
 (* A [seq] below our cursor can only mean the snapshot numbering started over
@@ -277,7 +277,7 @@ let occupancy_rows (sample : Exchange_stats.t) =
     [ [ "request-queue", request_queue ]
     ; indexed "audit" audit_subscribers
     ; List.concat_map market_data_subscribers ~f:(fun (symbol, lengths) ->
-        indexed [%string "md:%{symbol#Symbol}"] lengths)
+        indexed [%string "md:%{symbol#Symbol_id}"] lengths)
     ; List.map sessions ~f:(fun (participant, length) ->
         [%string "session:%{participant#Participant}"], length)
     ; indexed "stats" stats_subscribers
@@ -385,7 +385,7 @@ let depth_view t ~symbol : Depth_view.t option =
   | None -> None
   | Some (newest_sample : Exchange_stats.t) ->
     (match
-       List.Assoc.find newest_sample.books symbol ~equal:Symbol.equal
+       List.Assoc.find newest_sample.books symbol ~equal:Symbol_id.equal
      with
      | None -> None
      | Some (depth : Exchange_stats.Book_depth.t) ->
@@ -435,12 +435,12 @@ let bbo_mid (bbo : Bbo.t) =
 let price_view t ~symbol : Price_view.t =
   List.map t.samples ~f:(fun (sample : Exchange_stats.t) ->
     let market =
-      match List.Assoc.find sample.books symbol ~equal:Symbol.equal with
+      match List.Assoc.find sample.books symbol ~equal:Symbol_id.equal with
       | None -> None
       | Some (depth : Exchange_stats.Book_depth.t) -> bbo_mid depth.bbo
     in
     let fundamental =
-      List.Assoc.find sample.fundamentals symbol ~equal:Symbol.equal
+      List.Assoc.find sample.fundamentals symbol ~equal:Symbol_id.equal
     in
     { Price_view.Point.market; fundamental })
 ;;

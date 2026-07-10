@@ -82,7 +82,7 @@ val sample_count : t -> int
 (** All symbols with a book row in any sample of the window, sorted. The
     union (rather than just the newest sample) keeps a symbol selectable even
     if it briefly drops out of a snapshot. *)
-val symbols : t -> Symbol.t list
+val symbols : t -> Symbol_id.t list
 
 (** The direction of a pipe-occupancy reading over the last ~10 seconds. A
     queue counts as [Rising] only when it grew by more than
@@ -215,7 +215,7 @@ end
 (** [depth_view t ~symbol] summarizes [symbol]'s book in the newest sample,
     or [None] when the window is empty or the newest sample has no row for
     [symbol]. *)
-val depth_view : t -> symbol:Symbol.t -> Depth_view.t option
+val depth_view : t -> symbol:Symbol_id.t -> Depth_view.t option
 
 (** What the price pane plots: one point per sample across the whole window,
     each pairing the observed market price with the fundamental for the
@@ -240,7 +240,7 @@ end
     across the window, oldest first; empty when the window is empty. Samples
     with no book row for [symbol] still contribute a point (both fields may
     be [None]), so the series is aligned one-to-one with the sample window. *)
-val price_view : t -> symbol:Symbol.t -> Price_view.t
+val price_view : t -> symbol:Symbol_id.t -> Price_view.t
 
 (** What the matching-loop pane renders: gap percentiles over the whole
     window, a worst-gap-per-sample sparkline, and the iteration rate. *)

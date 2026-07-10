@@ -65,7 +65,7 @@ module Pipe_occupancy : sig
         matching loop. *)
     ; audit_subscribers : int list
     (** One length per audit-log subscriber pipe. *)
-    ; market_data_subscribers : (Symbol.t * int list) list
+    ; market_data_subscribers : (Symbol_id.t * int list) list
     (** Per symbol, one length per market-data subscriber pipe. A subscriber
         to several symbols appears under each of them. Sorted by symbol. *)
     ; sessions : (Participant.t * int) list
@@ -146,9 +146,9 @@ type t =
   ; participants : (Participant.t * Participant_stats.t) list
   (** One row per participant seen this interval or resting on a book; sorted
       by participant. *)
-  ; books : (Symbol.t * Book_depth.t) list
+  ; books : (Symbol_id.t * Book_depth.t) list
   (** One row per symbol the exchange trades; sorted by symbol. *)
-  ; fundamentals : (Symbol.t * Price.t) list
+  ; fundamentals : (Symbol_id.t * Price.t) list
   (** The simulation's fundamental ("fair") price per symbol at sampling
       time, as read from the scenario's price oracle. A dashboard can plot
       this against the observed market price to show how far the book has

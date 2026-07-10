@@ -15,8 +15,8 @@ let histogram_of spans =
 
 let alice = Participant.of_string "Alice"
 let bob = Participant.of_string "Bob"
-let aapl = Symbol.of_string "AAPL"
-let msft = Symbol.of_string "MSFT"
+let aapl = Symbol_id.of_int 0
+let msft = Symbol_id.of_int 3
 
 let participant_stats ~orders ~cancels ~resting
   : Exchange_stats.Participant_stats.t
@@ -315,7 +315,7 @@ let%expect_test "occupancy view: named rows, trends vs ~10s earlier" =
     (((name request-queue) (length 6) (trend Rising))
      ((name audit[0]) (length 100) (trend Flat))
      ((name audit[1]) (length 30) (trend Falling))
-     ((name md:AAPL[0]) (length 3) (trend Flat))
+     ((name md:0[0]) (length 3) (trend Flat))
      ((name session:Alice) (length 2) (trend Flat)))
     |}];
   (* When the window is shorter than the 10s lookback, trends compare against
@@ -430,8 +430,8 @@ let%expect_test "depth view: present, quote-less, and absent symbols" =
           ()
       ]
   in
-  print_s [%sexp (Dashboard_state.symbols state : Symbol.t list)];
-  [%expect {| (AAPL MSFT) |}];
+  print_s [%sexp (Dashboard_state.symbols state : Symbol_id.t list)];
+  [%expect {| (0 3) |}];
   print_s
     [%sexp
       (Dashboard_state.depth_view state ~symbol:aapl
@@ -453,7 +453,7 @@ let%expect_test "depth view: present, quote-less, and absent symbols" =
     |}];
   print_s
     [%sexp
-      (Dashboard_state.depth_view state ~symbol:(Symbol.of_string "GOOG")
+      (Dashboard_state.depth_view state ~symbol:(Symbol_id.of_int 2)
        : Dashboard_state.Depth_view.t option)];
   [%expect {| () |}]
 ;;
@@ -545,7 +545,7 @@ let%expect_test "price view: mid, one-sided, absent, and per-sample \
      sample. *)
   print_s
     [%sexp
-      (Dashboard_state.price_view state ~symbol:(Symbol.of_string "GOOG")
+      (Dashboard_state.price_view state ~symbol:(Symbol_id.of_int 2)
        : Dashboard_state.Price_view.t)];
   [%expect
     {| (((market ()) (fundamental ())) ((market ()) (fundamental ()))) |}]

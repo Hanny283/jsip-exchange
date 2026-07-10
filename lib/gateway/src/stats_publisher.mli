@@ -29,7 +29,7 @@
           ~dispatcher
           ~registry
           ~engine
-          ~symbols
+          ~num_symbols
           ~request_queue_length:(fun () -> Pipe.length request_writer)
           ~fundamental:(fun _ -> None)
       in
@@ -46,7 +46,7 @@ open Jsip_order_book
 
 type t
 
-(** [create ~collector ~dispatcher ~registry ~engine ~symbols ~request_queue_length]
+(** [create ~collector ~dispatcher ~registry ~engine ~num_symbols ~request_queue_length]
     is a publisher with no subscribers that has produced no snapshots (the
     first {!tick} emits [seq = 1]).
 
@@ -57,7 +57,7 @@ type t
     - [registry] resolves the collector's {!Participant_id.t}-keyed rows back
       to names when the snapshot (a wire type, which speaks names) is built —
       the stats pipeline's ids stop here.
-    - [engine] and [symbols] drive the per-symbol book scan; symbols the
+    - [engine] and [num_symbols] drive the per-symbol book scan; ids the
       engine does not trade are skipped.
     - [request_queue_length] reports the matching loop's inbound queue
       occupancy. It is a closure because the server owns that pipe; called
@@ -72,7 +72,7 @@ val create
   -> dispatcher:Dispatcher.t
   -> registry:Participant_id.Registry.t
   -> engine:Matching_engine.t
-  -> symbols:Symbol.t list
+  -> num_symbols:int
   -> request_queue_length:(unit -> int)
   -> fundamental:(Symbol_id.t -> Price.t option)
   -> t

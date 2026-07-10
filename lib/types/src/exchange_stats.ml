@@ -36,7 +36,7 @@ module Pipe_occupancy = struct
   type t =
     { request_queue : int
     ; audit_subscribers : int list
-    ; market_data_subscribers : (Symbol.t * int list) list
+    ; market_data_subscribers : (Symbol_id.t * int list) list
     ; sessions : (Participant.t * int) list
     ; stats_subscribers : int list
     }
@@ -84,8 +84,8 @@ type t =
   ; latencies : Latencies.t
   ; pipes : Pipe_occupancy.t
   ; participants : (Participant.t * Participant_stats.t) list
-  ; books : (Symbol.t * Book_depth.t) list
-  ; fundamentals : (Symbol.t * Price.t) list
+  ; books : (Symbol_id.t * Book_depth.t) list
+  ; fundamentals : (Symbol_id.t * Price.t) list
   ; loop : Loop_stats.t
   }
 [@@deriving sexp_of, bin_io]
