@@ -74,6 +74,14 @@ val snapshot : t -> Book.t
 
 module For_testing : sig
   val remove : t -> Order_id.t -> Order.t option
+
+  (** Check the book's internal invariants, raising with context on any
+      violation: no empty level in either side's map, and each side's cached
+      best level in exact (physical) correspondence with its map's extreme
+      entry. [test_order_book_invariants.ml] calls this after every step of
+      randomized workloads, so any new mutation path that forgets the cache
+      fails loudly there. O(orders). *)
+  val invariant : t -> unit
 end
 
 val set_identifiers : t -> Order.t Order_id.Map.t -> unit
