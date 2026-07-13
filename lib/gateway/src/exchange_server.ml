@@ -117,16 +117,16 @@ let forward_feed
 ;;
 
 let start
-  ~symbols
+  ~symbol_registry
   ~port
   ?(stats_interval = Time_ns.Span.second)
   ?(fundamental = fun _ -> None)
   ()
   =
-  (* Symbol ids are positional: the i-th symbol of [symbols] is id [i]. The
-     engine and dispatcher work purely in ids; [symbols] itself is only used
-     for its length here and by the stats publisher's name bridge. *)
-  let num_symbols = List.length symbols in
+  (* The registry is the authority on name<->id (the i-th symbol is id [i]);
+     the server serves it over the directory RPC and otherwise works purely
+     in ids — it never renders a name. *)
+  let num_symbols = Symbol_registry.num_symbols symbol_registry in
   let engine = Matching_engine.create ~num_symbols in
   (* One registry shared by everything that touches participant ids: the
      dispatcher (interns at login, routes by id) and the stats publisher
@@ -204,6 +204,9 @@ let start
             Rpc_protocol.exchange_stats_rpc
             (fun _state () ->
                return (Ok (Stats_publisher.subscribe publisher)))
+        ; Rpc.Rpc.implement'
+            Rpc_protocol.symbol_directory_rpc
+            (fun _state () -> Symbol_registry.to_directory symbol_registry)
         ; Rpc.Rpc.implement
             Rpc_protocol.login_rpc
             (fun (state : Connection_state.t) participant_name ->

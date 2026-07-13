@@ -145,10 +145,12 @@ let compile_filter t =
       (Event_log.Filter.by_substring effective_substring)
 ;;
 
-let display t : Display.t =
+let display ?symbols t : Display.t =
   let filter = compile_filter t in
   let filtered_log = Event_log.set_filter t.log filter in
-  let visible_events = Event_log.visible_styled_lines filtered_log in
+  let visible_events =
+    Event_log.visible_styled_lines ?symbols filtered_log
+  in
   let total = Event_log.event_count t.log in
   let visible_count = List.length visible_events in
   let cat_chip hotkey cat : Chip.t =

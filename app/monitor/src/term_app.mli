@@ -8,6 +8,7 @@
 open! Core
 open! Async
 open Jsip_types
+open Jsip_gateway
 open Bonsai_term
 
 (** The bonsai_term app. Pass to [Bonsai_term.start_with_exit]. [events] is
@@ -17,6 +18,7 @@ open Bonsai_term
     closed. *)
 val app
   :  events:Exchange_event.t Pipe.Reader.t
+  -> symbols:Symbol_registry.t
   -> exit:(unit -> unit Effect.t)
   -> dimensions:Dimensions.t Bonsai.t
   -> local_ Bonsai.graph
@@ -30,7 +32,8 @@ module For_testing : sig
       [?stuck_to_bottom] (default [true]) controls the auto-scroll indicator
       and the footer hint about the [a] toggle. *)
   val render_display
-    :  ?stuck_to_bottom:bool
+    :  ?symbols:Symbol_registry.t
+    -> ?stuck_to_bottom:bool
     -> Controller.Display.t
     -> View.t
 end

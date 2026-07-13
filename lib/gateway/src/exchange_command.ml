@@ -17,17 +17,24 @@ type t =
   | Subscribe of Symbol_id.t
   | Cancel of Client_order_id.t
 
-let parse_book_or_subscribe parts =
+(* Phase 2 grammar: the symbol token is the human NAME, resolved to its id
+   through the consumer's directory mirror at parse time — this is the
+   name->id edge. *)
+let parse_symbol ~symbols symbol_str =
+  match Symbol_registry.id symbols (Symbol.of_string symbol_str) with
+  | Some id -> Ok id
+  | None -> Or_error.error_string [%string "unknown symbol: %{symbol_str}"]
+  | exception exn ->
+    let exn_str = Exn.to_string exn in
+    Or_error.error_string
+      [%string "invalid symbol: %{symbol_str}\nexception: %{exn_str}"]
+;;
+
+let parse_book_or_subscribe ~symbols parts =
   match parts with
   | symbol_str :: _ ->
     let open Result.Let_syntax in
-    let%bind symbol =
-      try Ok (Symbol_id.of_string symbol_str) with
-      | exn ->
-        let exn_str = Exn.to_string exn in
-        Or_error.error_string
-          [%string "invalid symbol id: %{symbol_str}\nexception: %{exn_str}"]
-    in
+    let%bind symbol = parse_symbol ~symbols symbol_str in
     Ok symbol
   | [] -> Or_error.error_string "Bug: Impossible Case"
 ;;
@@ -49,7 +56,7 @@ let parse_cancel parts =
   | [] -> Or_error.error_string "Bug: Impossible Case"
 ;;
 
-let parse_buy_or_sell parts side =
+let parse_buy_or_sell ~symbols parts side =
   match parts with
   | client_order_id_str :: symbol_str :: size_str :: price_str :: rest ->
     let open Result.Let_syntax in
@@ -73,13 +80,7 @@ let parse_buy_or_sell parts side =
         Or_error.error_string
           [%string "invalid price: %{price_str}\nexception: %{exn_str}"]
     in
-    let%bind symbol =
-      try Ok (Symbol_id.of_string symbol_str) with
-      | exn ->
-        let exn_str = Exn.to_string exn in
-        Or_error.error_string
-          [%string "invalid symbol id: %{symbol_str}\nexception: %{exn_str}"]
-    in
+    let%bind symbol = parse_symbol ~symbols symbol_str in
     let%bind time_in_force, rest =
       match rest with
       | tif_str :: rest' ->
@@ -122,7 +123,7 @@ let parse_buy_or_sell parts side =
        ^ "]")
 ;;
 
-let parse command =
+let parse ~symbols command =
   let delimeter = ' ' in
   let command = String.split ~on:delimeter (String.strip command) in
   match command with
@@ -142,19 +143,19 @@ let parse command =
       | Ok Buy ->
         Or_error.map
           ~f:(fun element -> Submit element)
-          (parse_buy_or_sell parts Buy)
+          (parse_buy_or_sell ~symbols parts Buy)
       | Ok Sell ->
         Or_error.map
           ~f:(fun element -> Submit element)
-          (parse_buy_or_sell parts Sell)
+          (parse_buy_or_sell ~symbols parts Sell)
       | Ok Book ->
         Or_error.map
           ~f:(fun element -> Book element)
-          (parse_book_or_subscribe parts)
+          (parse_book_or_subscribe ~symbols parts)
       | Ok Subscribe ->
         Or_error.map
           ~f:(fun element -> Subscribe element)
-          (parse_book_or_subscribe parts)
+          (parse_book_or_subscribe ~symbols parts)
       | Ok Cancel ->
         Or_error.map ~f:(fun element -> Cancel element) (parse_cancel parts))
 ;;

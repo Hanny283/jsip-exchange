@@ -10,9 +10,12 @@ open Jsip_types
 
 type t
 
-(** Start a server on the given port with the given symbols. Returns the
-    server handle and the port it is actually listening on (useful when you
-    pass port 0 to get an OS-assigned port).
+(** Start a server on the given port trading [symbol_registry]'s symbols (the
+    i-th symbol is id [i], and the engine trades exactly those ids). The
+    server serves the registry read-only over
+    [Rpc_protocol.symbol_directory_rpc] — the server itself never renders a
+    symbol name. Returns the server handle and the port it is actually
+    listening on (useful when you pass port 0 to get an OS-assigned port).
 
     [stats_interval] (default one second) is how often the server samples
     itself and broadcasts an [Exchange_stats.t] snapshot to subscribers of
@@ -26,7 +29,7 @@ type t
     defaults to [fun _ -> None] — the bare exchange knows no fundamental — so
     only a scenario runner (which owns the price oracle) passes it. *)
 val start
-  :  symbols:Symbol.t list
+  :  symbol_registry:Symbol_registry.t
   -> port:int
   -> ?stats_interval:Time_ns.Span.t
   -> ?fundamental:(Symbol_id.t -> Price.t option)

@@ -13,6 +13,7 @@
 
 open! Core
 open Jsip_types
+open Jsip_gateway
 
 (** A single labelled toggle in the filter row. The bonsai_term layer renders
     each chip as bracketed text colored by [enabled] and prefixed with its
@@ -75,4 +76,4 @@ val should_exit : t -> bool
 val is_editing_substring : t -> bool
 
 (** Render the current state as [Display.t]. *)
-val display : t -> Display.t
+val display : ?symbols:Symbol_registry.t -> t -> Display.t

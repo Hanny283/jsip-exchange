@@ -22,15 +22,19 @@ let default_symbols =
 ;;
 
 let start ~port =
-  let%bind server =
-    Exchange_server.start ~symbols:default_symbols ~port ()
-  in
+  (* main owns the id authority: the i-th symbol of [default_symbols] is id
+     i, and the directory RPC serves this mapping to every connecting client. *)
+  let symbol_registry = Symbol_registry.of_symbols default_symbols in
+  let%bind server = Exchange_server.start ~symbol_registry ~port () in
   print_endline
     [%string
       "JSIP Exchange server listening on port %{Exchange_server.port \
        server#Int}"];
   let symbols =
-    List.map default_symbols ~f:Symbol.to_string |> String.concat ~sep:", "
+    Symbol_registry.to_directory symbol_registry
+    |> List.map ~f:(fun (name, id) ->
+      [%string "%{id#Symbol_id}=%{name#Symbol}"])
+    |> String.concat ~sep:" "
   in
   print_endline [%string "Trading: %{symbols}"];
   Exchange_server.close_finished server

@@ -40,10 +40,17 @@ let subscribe_audit_log ~connection ~host ~port =
 
 let main ~host ~port () =
   let%bind connection = connect_to_exchange ~host ~port in
+  (* Fetch the directory once at connect: the BBO panel and event lines
+     render ids through this mirror as human names. *)
+  let%bind symbols =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.symbol_directory_rpc connection ()
+    >>| Symbol_registry.of_directory
+    >>| ok_exn
+  in
   let%bind events = subscribe_audit_log ~connection ~host ~port in
   let%map result =
     Bonsai_term.start_with_exit (fun ~exit ~dimensions graph ->
-      Term_app.app ~events ~exit ~dimensions graph)
+      Term_app.app ~events ~symbols ~exit ~dimensions graph)
   in
   ok_exn result
 ;;

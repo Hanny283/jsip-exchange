@@ -25,6 +25,11 @@ type t =
 
 val to_string : t -> string
 
+(** As {!to_string} with the symbol column rendered from [symbol] — lets a
+    consumer holding a name directory print the human name without this
+    pure-data library knowing about directories. *)
+val to_string_with_symbol : t -> symbol:string -> string
+
 (** {2 Convenience accessors} *)
 
 (** The total notional value of the fill in cents (price * size). *)

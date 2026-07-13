@@ -82,8 +82,10 @@ module Filter = struct
     | Substring s -> String.Caseless.is_substring line ~substring:s
   ;;
 
-  let matches t event =
-    let line = Protocol.format_event event in
+  let matches ?symbols t event =
+    (* Substring filters match against the line the user actually sees, so
+       render through the same directory mirror as the display. *)
+    let line = Protocol.format_event ?symbols event in
     List.for_all t ~f:(predicate_matches event line)
   ;;
 end
@@ -123,13 +125,15 @@ let current_bbos t = List.rev t.bbos_rev
 let set_filter t filter = { t with filter }
 let filter t = t.filter
 
-let visible_events t =
-  List.rev_filter t.events_rev ~f:(Filter.matches t.filter)
+let visible_events ?symbols t =
+  List.rev_filter t.events_rev ~f:(Filter.matches ?symbols t.filter)
 ;;
 
-let visible_lines t = List.map (visible_events t) ~f:Protocol.format_event
+let visible_lines ?symbols t =
+  List.map (visible_events ?symbols t) ~f:(Protocol.format_event ?symbols)
+;;
 
-let visible_styled_lines t =
-  List.map (visible_events t) ~f:(fun event ->
-    Color.of_event event, Protocol.format_event event)
+let visible_styled_lines ?symbols t =
+  List.map (visible_events ?symbols t) ~f:(fun event ->
+    Color.of_event event, Protocol.format_event ?symbols event)
 ;;

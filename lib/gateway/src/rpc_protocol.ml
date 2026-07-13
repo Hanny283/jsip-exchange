@@ -77,3 +77,12 @@ let exchange_stats_rpc =
     ~bin_error:Error.bin_t
     ()
 ;;
+
+let symbol_directory_rpc =
+  Rpc.Rpc.create
+    ~name:"symbol-directory"
+    ~version:1
+    ~bin_query:Unit.bin_t
+    ~bin_response:[%bin_type_class: (Symbol.t * Symbol_id.t) list]
+    ~include_in_error_count:Only_on_exn
+;;

@@ -110,7 +110,7 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
         }
       in
       let%bind () = rpc_submit bob sell_to_cross in
-      [%expect {| [Bob] ACCEPTED id=1 0 SELL 100@$150.00 DAY |}];
+      [%expect {| [Bob] ACCEPTED id=1 AAPL SELL 100@$150.00 DAY |}];
       let sell_to_cancel : Order.Request.t =
         { sell_to_cross with
           price = Price.of_int_cents 15100
@@ -119,7 +119,7 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
         }
       in
       let%bind () = rpc_submit bob sell_to_cancel in
-      [%expect {| [Bob] ACCEPTED id=2 0 SELL 50@$151.00 DAY |}];
+      [%expect {| [Bob] ACCEPTED id=2 AAPL SELL 50@$151.00 DAY |}];
       (* Alice's buy crosses Bob's first sell and rests its remainder, so
          there is book depth left to report at sampling time. *)
       let crossing_buy : Order.Request.t =
@@ -134,10 +134,10 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
       let%bind () = rpc_submit alice crossing_buy in
       [%expect
         {|
-         [Alice] ACCEPTED id=3 0 BUY 150@$150.00 DAY
-         [Alice] FILL fill_id=1 0 $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
-         [Bob] FILL fill_id=1 0 $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
-         |}];
+        [Alice] ACCEPTED id=3 AAPL BUY 150@$150.00 DAY
+        [Alice] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
+        [Bob] FILL fill_id=1 AAPL $150.00 x100 aggressor=3(Alice) client_id=103 BUY resting=1(Bob) client_id=101
+        |}];
       let%bind cancel_result =
         Rpc.Rpc.dispatch_exn
           Rpc_protocol.cancel_order_rpc
@@ -146,7 +146,7 @@ let%expect_test "e2e: stats snapshots reflect traffic, books, and pipes" =
       in
       ok_exn cancel_result;
       [%expect
-        {| [Bob] CANCELLED client_id=102 id=2 0 remaining=50 reason=PARTICIPANT_REQUESTED |}];
+        {| [Bob] CANCELLED client_id=102 id=2 AAPL remaining=50 reason=PARTICIPANT_REQUESTED |}];
       (* The startup tick consumed seq 1 before any client connected, so the
          first forced snapshot is seq 2, and it covers all four commands
          above. *)

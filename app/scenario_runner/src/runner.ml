@@ -92,9 +92,13 @@ let run (config : Scenario_config.t) ~port ~seed =
      absent from the oracle config, so guard it — a symbol the exchange
      trades but the scenario doesn't price simply reports no fundamental. *)
   let oracle = Fundamental_oracle.create config.oracle_config ~seed in
+  (* The runner IS the server's main: it owns the id authority, built from
+     the scenario's symbol list (the i-th name is id i — the same positional
+     convention the scenario used for its bot configs). *)
+  let symbol_registry = Symbol_registry.of_symbols config.symbols in
   let%bind server =
     Exchange_server.start
-      ~symbols:config.symbols
+      ~symbol_registry
       ~port
       ~fundamental:(fun symbol ->
         Option.try_with (fun () -> Fundamental_oracle.price oracle symbol))

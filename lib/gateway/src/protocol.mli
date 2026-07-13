@@ -17,8 +17,17 @@
 open! Core
 open Jsip_types
 
-(** Format an exchange event as a single line of human-readable text. *)
-val format_event : Exchange_event.t -> string
+(** Format an exchange event as a single line of human-readable text.
+
+    [symbols] is the consumer's directory mirror
+    ({!Symbol_registry.of_directory}, fetched once at connect): when present,
+    symbol ids render as their human names; when absent — or for an id the
+    mirror doesn't know — the raw id prints instead. Hydration is a consumer
+    concern, so the server never passes [symbols]. *)
+val format_event : ?symbols:Symbol_registry.t -> Exchange_event.t -> string
 
 (** Format a list of events, one per line. *)
-val format_events : Exchange_event.t list -> string
+val format_events
+  :  ?symbols:Symbol_registry.t
+  -> Exchange_event.t list
+  -> string

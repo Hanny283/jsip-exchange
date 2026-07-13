@@ -103,10 +103,19 @@ let%expect_test "round-trip: parse a command, submit, format result" =
     ~participant:Harness.bob
     t
     (Harness.sell ~price_cents:15000 ());
-  (* Parse a buy command from text and submit it. Phase-1 grammar: the symbol
-     token is the raw id (0 = the harness's AAPL slot). *)
+  (* Parse a buy command from text and submit it: the symbol token is the
+     human name, resolved through the directory mirror at parse time — then
+     the results render back through the same mirror. Name -> id -> engine ->
+     id -> name. *)
+  let symbols =
+    Symbol_registry.of_symbols
+      [ Symbol.of_string "AAPL"
+      ; Symbol.of_string "TSLA"
+      ; Symbol.of_string "GOOG"
+      ]
+  in
   let request =
-    match Exchange_command.parse "BUY 1 0 100 150.00" with
+    match Exchange_command.parse ~symbols "BUY 1 AAPL 100 150.00" with
     | Ok (Exchange_command.Submit request) -> request
     | Ok _ -> failwith "expected a Submit command"
     | Error err -> Error.raise err
@@ -117,14 +126,14 @@ let%expect_test "round-trip: parse a command, submit, format result" =
       request
       ~participant:Harness.alice
   in
-  print_endline (Protocol.format_events events);
+  print_endline (Protocol.format_events ~symbols events);
   [%expect
     {|
     ACCEPTED id=1 0 SELL 100@$150.00 DAY
     BBO 0 bid=- ask=$150.00 x100
-    ACCEPTED id=2 0 BUY 100@$150.00 DAY
-    FILL fill_id=1 0 $150.00 x100 aggressor=2(Alice) client_id=1 BUY resting=1(Bob) client_id=1
-    TRADE 0 $150.00 x100
-    BBO 0 bid=- ask=-
+    ACCEPTED id=2 AAPL BUY 100@$150.00 DAY
+    FILL fill_id=1 AAPL $150.00 x100 aggressor=2(Alice) client_id=1 BUY resting=1(Bob) client_id=1
+    TRADE AAPL $150.00 x100
+    BBO AAPL bid=- ask=-
     |}]
 ;;

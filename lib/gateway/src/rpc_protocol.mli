@@ -66,3 +66,10 @@ val cancel_order_rpc : (Client_order_id.t, unit Or_error.t) Rpc.Rpc.t
     it behind operator-level credentials; this simulator does not, but the
     same intent applies. *)
 val exchange_stats_rpc : (unit, Exchange_stats.t, Error.t) Rpc.Pipe_rpc.t
+
+(** One-shot directory: the [(name, id)] pairs for every symbol this exchange
+    trades, in id order (ids are dense [0 .. n - 1]). Fetched once at connect
+    and mirrored consumer-side ([Symbol_registry.of_directory]); name->id at
+    parse, id->name at render. Explicit pairs rather than a bare name list so
+    the wire contract doesn't bake in density. *)
+val symbol_directory_rpc : (unit, (Symbol.t * Symbol_id.t) list) Rpc.Rpc.t

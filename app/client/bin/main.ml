@@ -33,12 +33,25 @@ market-data feed.|}];
     Rpc.Rpc.dispatch_exn Rpc_protocol.login_rpc conn participant_name
     >>| ok_exn
   in
+  (* Fetch the directory once at connect and mirror it locally: commands are
+     typed with human names (resolved to ids at parse), and everything the
+     server sends back renders its ids through this mirror. *)
+  let%bind symbols =
+    Rpc.Rpc.dispatch_exn Rpc_protocol.symbol_directory_rpc conn ()
+    >>| Symbol_registry.of_directory
+    >>| ok_exn
+  in
+  let symbol_name id =
+    match Symbol_registry.name symbols id with
+    | Some name -> Symbol.to_string name
+    | None -> Symbol_id.to_string id
+  in
   let%bind session_feed, _ =
     Rpc.Pipe_rpc.dispatch_exn Rpc_protocol.session_feed_rpc conn ()
   in
   let _ =
     Pipe.iter session_feed ~f:(fun event ->
-      Deferred.return (print_endline (Exchange_event.to_string_hum event)))
+      Deferred.return (print_endline (Protocol.format_event ~symbols event)))
   in
   let rec loop () =
     print_string "> ";
@@ -51,7 +64,7 @@ market-data feed.|}];
       if String.is_empty line
       then loop ()
       else (
-        let parsed = Exchange_command.parse line in
+        let parsed = Exchange_command.parse ~symbols line in
         match parsed with
         | Error msg ->
           let string_error = Error.to_string_hum msg in
@@ -66,8 +79,12 @@ market-data feed.|}];
              (match result with
               | None ->
                 print_endline
-                  [%string "No book available for %{symbol#Symbol_id}"]
-              | Some result -> print_endline (Book.to_string result));
+                  [%string "No book available for %{symbol_name symbol}"]
+              | Some result ->
+                print_endline
+                  (Book.to_string_with_symbol
+                     result
+                     ~symbol:(symbol_name symbol)));
              loop ()
            | Subscribe symbol ->
              let%bind result =
@@ -85,14 +102,15 @@ market-data feed.|}];
                 print_endline
                   [%string
                     {|
-Subscribed to %{symbol#Symbol_id} market data. Updates will appear below.
+Subscribed to %{symbol_name symbol} market data. Updates will appear below.
 Continue entering commands as normal.|}];
                 (* Read market data in the background; the command loop
                    continues running concurrently. *)
                 don't_wait_for
                   (Pipe.iter_without_pushback reader ~f:(fun event ->
                      print_endline
-                       [%string "[MD] %{Protocol.format_event event}"]));
+                       [%string
+                         "[MD] %{Protocol.format_event ~symbols event}"]));
                 loop ())
            | Submit request ->
              let%bind.Deferred.Or_error () =

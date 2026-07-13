@@ -15,9 +15,9 @@ type t =
   }
 [@@deriving sexp, bin_io]
 
-let to_string
+let to_string_with_symbol
   ({ fill_id
-   ; symbol
+   ; symbol = _
    ; price
    ; size
    ; aggressor_order_id
@@ -29,12 +29,13 @@ let to_string
    ; resting_client_order_id
    } :
     t)
+  ~symbol
   =
   sprintf
     "fill_id=%d %s %s x%d aggressor=%s(%s) client_id=%s %s resting=%s(%s) \
      client_id=%s"
     fill_id
-    (Symbol_id.to_string symbol)
+    symbol
     (Price.to_string_dollar price)
     (Size.to_int size)
     (Order_id.to_string aggressor_order_id)
@@ -47,3 +48,7 @@ let to_string
 ;;
 
 let notional_cents t = Price.to_int_cents t.price * Size.to_int t.size
+
+let to_string t =
+  to_string_with_symbol t ~symbol:(Symbol_id.to_string t.symbol)
+;;
