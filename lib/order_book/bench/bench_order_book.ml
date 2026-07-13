@@ -165,15 +165,20 @@ let bench_best_bid_offer ~n =
     ignore (Order_book.best_bid_offer book : Bbo.t))
 ;;
 
+(** Add one order at a middle, non-best price of an [n]-level book, then
+    remove it. The level already holds one resting order, so it never empties
+    and the best price never changes: this isolates the baseline per-order
+    cost (identifiers-map update at [log n] plus a short queue scan).
+    {!bench_add_remove_deep_level} and {!bench_add_remove_best} each add
+    exactly one growing term on top of this baseline. *)
 let bench_add_remove ~n =
-  (* Pre-build the book, then measure add+remove cycle *)
   let min_price = 10_000 in
   let book, gen = book_with_n_asks ~min_price n in
   let order =
     Order.create
       { symbol = aapl
       ; side = Sell
-      ; price = Price.of_int_cents (min_price + 500)
+      ; price = Price.of_int_cents (min_price + (n / 2))
       ; size = Size.of_int 100
       ; time_in_force = Day
       ; client_order_id = Client_order_id.of_string (Int.to_string 1)
@@ -183,6 +188,71 @@ let bench_add_remove ~n =
   in
   let oid = Order.order_id order in
   Bench.Test.create ~name:[%string "add+remove (n=%{n#Int})"] (fun () ->
+    Order_book.add book order;
+    Order_book.remove book oid)
+;;
+
+(** Add one order to a level that already holds [k] resting orders (the whole
+    book is stacked at ONE price), then remove it. The book shape is constant
+    except for level depth, so the only term that can grow with [k] is
+    [remove]'s [Queue.filter_inplace] scan of the level — this isolates that
+    O(k) cost. The level never empties, so no level is dropped and no
+    best-price work happens. *)
+let bench_add_remove_deep_level ~k =
+  let price = 15_000 in
+  let book = book_with_n_asks_same_price ~price k in
+  (* [book_with_n_asks_same_price] keeps its id generator private and hands
+     out ids 1..k, so burn [k] ids to give the extra order a distinct id —
+     the book's identifiers map is keyed by order id. *)
+  let gen = Order_id.Generator.create () in
+  for _ = 1 to k do
+    ignore (Order_id.Generator.next gen : Order_id.t)
+  done;
+  let order =
+    Order.create
+      { symbol = aapl
+      ; side = Sell
+      ; price = Price.of_int_cents price
+      ; size = Size.of_int 100
+      ; time_in_force = Day
+      ; client_order_id = Client_order_id.of_string (Int.to_string 1)
+      }
+      ~order_id:(Order_id.Generator.next gen)
+      ~participant:alice
+  in
+  let oid = Order.order_id order in
+  Bench.Test.create
+    ~name:[%string "add+remove_deep_level (k=%{k#Int})"]
+    (fun () ->
+       Order_book.add book order;
+       Order_book.remove book oid)
+;;
+
+(** Add one order strictly more aggressive than every resting level, then
+    remove it. {!book_with_n_asks} rests sells at
+    [min_price + 1 .. min_price + n], so a sell at [min_price] opens a fresh
+    level that becomes the best ask. Removing it empties that level, so the
+    book drops the level and must re-derive the best ask off the map — this
+    isolates fresh-level map add/remove plus best-of-book bookkeeping, on top
+    of {!bench_add_remove}'s baseline (which never touches the best or the
+    level structure). *)
+let bench_add_remove_best ~n =
+  let min_price = 10_000 in
+  let book, gen = book_with_n_asks ~min_price n in
+  let order =
+    Order.create
+      { symbol = aapl
+      ; side = Sell
+      ; price = Price.of_int_cents min_price
+      ; size = Size.of_int 100
+      ; time_in_force = Day
+      ; client_order_id = Client_order_id.of_string (Int.to_string 1)
+      }
+      ~order_id:(Order_id.Generator.next gen)
+      ~participant:alice
+  in
+  let oid = Order.order_id order in
+  Bench.Test.create ~name:[%string "add+remove_best (n=%{n#Int})"] (fun () ->
     Order_book.add book order;
     Order_book.remove book oid)
 ;;
@@ -282,6 +352,19 @@ let bench_submit_sweep ~n =
          ~participant:alice
        : Exchange_event.t list);
     (* Re-seed entire book *)
+    engine := engine_with_n_asks n)
+;;
+
+(** Rebuild the engine exactly the way {!bench_submit_sweep}'s re-seed does —
+    [n] fresh [Day] submits into a new engine, stored through the same ref —
+    and do NOTHING else. [bench_submit_sweep]'s timed thunk is sweep + this
+    re-seed, so read the two together:
+    [submit_sweep_n_levels - reseed_only_n_levels] isolates the sweep itself
+    (per-level fill cost, allocation, promotion) from the cost of rebuilding
+    the book. *)
+let bench_reseed_only ~n =
+  let engine = ref (engine_with_n_asks n) in
+  Bench.Test.create ~name:[%string "reseed_only_%{n#Int}_levels"] (fun () ->
     engine := engine_with_n_asks n)
 ;;
 
@@ -522,5 +605,16 @@ let () =
                 ; bench_table_load_factor ~n ~capacity:n ~label:"n"
                 ; bench_table_load_factor ~n ~capacity:(n * 4) ~label:"4n"
                 ])) )
+       ; ( "book-scaling"
+         , Bench.make_command
+             (List.concat
+                [ List.map [ 10; 100; 1_000; 10_000 ] ~f:(fun n ->
+                    bench_add_remove ~n)
+                ; List.map [ 10; 100; 1_000; 10_000 ] ~f:(fun k ->
+                    bench_add_remove_deep_level ~k)
+                ; List.map [ 10; 100; 1_000; 10_000 ] ~f:(fun n ->
+                    bench_add_remove_best ~n)
+                ; List.map [ 10; 50; 100 ] ~f:(fun n -> bench_reseed_only ~n)
+                ]) )
        ])
 ;;
