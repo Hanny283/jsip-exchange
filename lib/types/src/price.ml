@@ -34,8 +34,8 @@ let is_more_aggressive (side : Side.t) ~price ~than =
 
 let is_marketable (side : Side.t) ~price ~resting_price =
   match side with
-  | Buy -> price <= resting_price
-  | Sell -> price >= resting_price
+  | Buy -> price >= resting_price
+  | Sell -> price <= resting_price
 ;;
 
 let to_string_dollar t =
