@@ -1,3 +1,9 @@
+## v1.0.3 — incident fix
+
+The revert restored the original code, but the original was also buggy—it uses strict inequality operators, silently dropping orders at the exact resting price, which must match per spec. The fix adds equality checks: buy orders match when price >= resting ask, sell orders when price <= resting bid.
+
+_Fix applied: applied the diagnosed one-edit fix to `lib/types/src/price.ml`._
+
 ## v1.0.2 — incident fix
 
 The auto-revert restored the correct operator order but left the strict comparisons intact. Matching semantics require that a buy order is marketable when price >= resting ask and a sell order when price <= resting bid; using strict > and < silently drops orders sitting exactly at the touch price, breaking the fill guarantee.
