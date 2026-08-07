@@ -1,3 +1,9 @@
+## v1.0.4 — incident fix
+
+The bad commit inverted the comparison operators, breaking matching entirely. The revert restored the original code, but the original already had a latent bug: it used strict comparisons (> and <) instead of inclusive (>= and <=), silently dropping orders that sit exactly at the resting price. This fix uses inclusive comparisons to match the correct semantics.
+
+_Fix applied: applied the diagnosed one-edit fix to `lib/types/src/price.ml`._
+
 ## v1.0.3 — incident fix
 
 The revert restored the original code, but the original was also buggy—it uses strict inequality operators, silently dropping orders at the exact resting price, which must match per spec. The fix adds equality checks: buy orders match when price >= resting ask, sell orders when price <= resting bid.
