@@ -1,3 +1,9 @@
+## v1.0.5 — incident fix
+
+The incident was triggered by a commit that swapped the buy/sell comparison operators, which auto-reverted correctly. However, the reverted code contains a latent bug: it uses strict inequalities (> and <) instead of allowing equality, which silently drops orders sitting exactly at the resting price. This fix adds equality to both comparisons to match correct exchange matching semantics.
+
+_Fix applied: applied the diagnosed one-edit fix to `lib/types/src/price.ml`._
+
 ## v1.0.4 — incident fix
 
 The bad commit inverted the comparison operators, breaking matching entirely. The revert restored the original code, but the original already had a latent bug: it used strict comparisons (> and <) instead of inclusive (>= and <=), silently dropping orders that sit exactly at the resting price. This fix uses inclusive comparisons to match the correct semantics.
